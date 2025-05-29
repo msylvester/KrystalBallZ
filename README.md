@@ -1,6 +1,7 @@
 # 🔮 KrystalBallZ
 
-This is the repo for Krystal Ball Z. Eventually, this application will provide a multi-agent window all of the relevant news and happenings of the day in the field of software engineering.
+Krystal Ball Z is an evolving application designed to deliver a multi-agent, real-time overview of the most relevant news and developments in the field of software engineering.
+Emphasis will be on MCP, RAG, and, generally, multi-agent software & development. 
 
 ## 🤖 Features
 - GPT-3 powered responses
