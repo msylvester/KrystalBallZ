@@ -5,14 +5,17 @@ import requests
 import json
 from datetime import datetime
 from surf_report_service import SurfReportService
+from job_service import AIJobSearchService
 
 class Agent:
     def __init__(self):
         self.event_history = []
         self.api_key = os.environ.get("OPENAI_API_KEY", "")
         self.surf_service = SurfReportService()
+        self.job_service = AIJobSearchService()
         self.tools = {
-            "surf_report": self.surf_service.get_surf_report
+            "surf_report": self.surf_service.get_surf_report,
+            "ai_jobs": self.job_service.get_ai_jobs
         }
     
     def process_event(self, event):
@@ -25,6 +28,24 @@ class Agent:
         # Check if this is a tool request
         if "surf report" in event.lower():
             return self.tools["surf_report"]()
+        elif "ai jobs" in event.lower() or "job search" in event.lower():
+            # Extract location if provided
+            location = ""
+            if "in " in event.lower():
+                location_parts = event.lower().split("in ")
+                if len(location_parts) > 1:
+                    location = location_parts[1].strip()
+            
+            # Default limit is 5, but can be customized
+            limit = 5
+            if "show" in event.lower() and "jobs" in event.lower():
+                # Try to extract a number
+                import re
+                num_match = re.search(r'show (\d+) jobs', event.lower())
+                if num_match:
+                    limit = int(num_match.group(1))
+            
+            return self.tools["ai_jobs"](location=location, limit=limit)
         
         try:
             client = OpenAI(api_key=self.api_key)
