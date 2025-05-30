@@ -27,3 +27,7 @@ Emphasis will be on MCP, RAG, and, generally, multi-agent software & development
 - OpenAI GPT-3
 - Streamlit
 - Python
+
+## Contributors 
+- **ashruidan** [https://github.com/ashruidan]
+- **krystal_mess323**: [twitch.tv/krystal_mess323](https://www.twitch.tv/krystal_mess323)
