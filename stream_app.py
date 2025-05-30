@@ -54,6 +54,11 @@ class Agent:
                     location = location_parts[1].strip()
                     self.logger.info(f"Extracted location: '{location}'")
             
+            # Special handling for San Francisco
+            if "san francisco" in event.lower() or (location and "san francisco" in location.lower()):
+                self.logger.info("Detected request for San Francisco jobs")
+                location = "San Francisco, CA"
+            
             # Default limit is 5, but can be customized
             limit = 5
             if "show" in event.lower() and "jobs" in event.lower():
