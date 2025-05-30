@@ -1,31 +1,45 @@
 import http.client
 import json
+import logging
 from datetime import datetime, timedelta
 import re
+
+# Configure logging for the job service
+logger = logging.getLogger("agent_app.job_service")
 
 class AIJobSearchService:
     def __init__(self, api_key=None):
         """Initialize with Jooble API credentials"""
         self.api_key = api_key or '<YOUR_API_KEY>'
         self.host = 'jooble.org'
+        self.logger = logging.getLogger("agent_app.job_service.AIJobSearchService")
+        self.logger.info("AIJobSearchService initialized")
         
     def get_ai_jobs(self, location="", limit=10):
         """MCP implementation to get AI engineering job data"""
+        self.logger.info(f"Getting AI jobs for location='{location}', limit={limit}")
         try:
             # Model: Get data from Jooble API
+            self.logger.info("Fetching job data from API")
             job_data = self._fetch_job_data(location, limit)
             
             # Controller: Process the data
+            self.logger.info(f"Processing job data with {len(job_data.get('jobs', []))} jobs")
             processed_data = self._process_job_data(job_data)
             
             # Processor: Format the response
-            return self._format_job_report(processed_data)
+            self.logger.info("Formatting job report")
+            report = self._format_job_report(processed_data)
+            self.logger.info(f"Job report generated ({len(report)} chars)")
+            return report
         except Exception as e:
+            self.logger.error(f"Error getting AI job listings: {str(e)}")
             return f"Error getting AI job listings: {str(e)}"
     
     def _fetch_job_data(self, location, limit):
         """Model component: Fetch AI engineering jobs from Jooble API"""
         try:
+            self.logger.info(f"Connecting to {self.host}")
             connection = http.client.HTTPConnection(self.host)
             
             # Request headers
@@ -42,27 +56,36 @@ class AIJobSearchService:
             }
             
             body = json.dumps(query_body)
+            self.logger.info(f"API request: {body}")
             
             # Make API request
             connection.request('POST', '/api/' + self.api_key, body, headers)
+            self.logger.info("Waiting for API response")
             response = connection.getresponse()
             
             if response.status == 200:
+                self.logger.info("API request successful (200 OK)")
                 response_data = response.read().decode('utf-8')
-                return json.loads(response_data)
+                data = json.loads(response_data)
+                self.logger.info(f"Received {len(data.get('jobs', []))} jobs from API")
+                return data
             else:
-                print(f"API Error: {response.status} {response.reason}")
+                self.logger.warning(f"API Error: {response.status} {response.reason}")
+                self.logger.info("Falling back to mock data")
                 return self._get_mock_data()
                 
         except Exception as e:
-            print(f"Connection error: {str(e)}")
+            self.logger.error(f"Connection error: {str(e)}")
+            self.logger.info("Falling back to mock data due to error")
             return self._get_mock_data()
         finally:
             if 'connection' in locals():
                 connection.close()
+                self.logger.debug("Connection closed")
     
     def _get_mock_data(self):
         """Fallback mock data for demonstration"""
+        self.logger.info("Generating mock job data")
         return {
             'jobs': [
                 {
