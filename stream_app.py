@@ -93,6 +93,18 @@ def main():
     if st.button("Submit Event"):
         if user_input:
             response = st.session_state.agent.process_event(user_input)
+            
+            # Determine which service was used
+            service_used = None
+            if "AI ENGINEERING JOBS REPORT" in response:
+                service_used = "AI Job Search Service"
+            elif "SURF REPORT" in response:
+                service_used = "Surf Report Service"
+            
+            # Display the response with service indicator if applicable
+            if service_used:
+                st.markdown(f"<div style='background-color: #e6f3ff; padding: 10px; border-radius: 5px; margin-bottom: 10px;'><strong>🔧 Using {service_used}</strong></div>", unsafe_allow_html=True)
+            
             st.success(response)
         else:
             st.warning("Please enter event data")
