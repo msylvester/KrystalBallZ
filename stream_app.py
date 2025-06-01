@@ -182,7 +182,9 @@ def main():
     
     # Use a unique key for the button to ensure it refreshes properly
     if st.button("Submit Event", key="submit_event_button"):
+        print(f'here we are')
         if user_input:
+
             logger.info(f"User submitted: '{user_input}'")
             response = st.session_state.agent.process_event(user_input)
             
