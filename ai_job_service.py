@@ -28,11 +28,8 @@ class AIJobSearchService:
             "location": location,
             "limit": limit
         }
-        url = "https://jooble.org/api"
-        headers = {
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {self.api_key}"
-        }
+        url = f"https://jooble.org/api/{self.api_key}"
+        headers = {"Content-Type": "application/json"}
         response = requests.post(url, json=payload, headers=headers)
 
         print(f' the response is {response}')
