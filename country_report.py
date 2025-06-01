@@ -107,10 +107,10 @@ def main():
     country_data = api.get_data(region=args.region)
     
     # Process data
-    processed_data = process_surf_data(country_data)
+    processed_data = process_country_data(country_data)
     
     # Format and print report
-    report = format_surf_report(processed_data)
+    report = format_country_report(processed_data)
     print(report)
 
 if __name__ == "__main__":
@@ -242,7 +242,7 @@ def authorize(api_key=None):
     """
     return CountryReportAPI(api_key)
 
-def process_surf_data(data):
+def process_country_data(data):
     """Process country data to add derived metrics
     
     Args:
@@ -281,7 +281,7 @@ def process_surf_data(data):
     
     return processed_data
 
-def format_surf_report(data):
+def format_country_report(data):
     """Format the country data into a human-readable report
     
     Args:
