@@ -2,13 +2,13 @@ import pytest
 import json
 import requests
 import os
-from surfreport import SurfReportAPI, authorize, process_surf_data, format_surf_report
+from surfreport import CountryReportAPI, authorize, process_surf_data, format_surf_report
 
-class TestSurfReport:
+class TestCountryReport:
     def test_api_authorization(self):
         """Test that the API authorization works correctly"""
         # Arrange
-        test_api_key = os.environ.get("SURFLINE_API_KEY", "test_key_123")
+        test_api_key = "test_key_123"  # Not needed but kept for compatibility
         
         # Act
         api = authorize(test_api_key)
@@ -16,66 +16,60 @@ class TestSurfReport:
         # Assert
         assert api is not None
         assert api.api_key == test_api_key
-        assert f"Bearer {test_api_key}" in api.headers["Authorization"]
+        assert "Content-Type" in api.headers
     
     def test_api_get_data_real_request(self):
         """Test that the API get_data method works with real network requests"""
         print('\n[TEST] Starting real API request test')
         # Arrange
-        test_api_key = os.environ.get("SURFLINE_API_KEY", "test_key_123")
-        api = authorize(test_api_key)
+        api = authorize()
         
         # Act
-        print(f'[TEST] Making API request with key: {test_api_key[:3]}{"*" * (len(test_api_key) - 3)}')
+        print(f'[TEST] Making API request to countries API')
         response = api.get_data()  # This will make a real network request
 
         print(f'[TEST] Response received: {json.dumps(response, indent=2)}')
         
         # Assert
         assert response is not None
-        assert response["api_key_used"] == test_api_key
-        assert response["status"] == "authorized"
         assert "location" in response
-        assert "wave_height" in response
-        assert "wind" in response
-        assert "temperature" in response
+        assert "population" in response
+        assert "region" in response
+        assert "capital" in response
+        assert "languages" in response
         
-    def test_api_get_data_with_custom_spot(self):
-        """Test that the API get_data method works with a custom spot ID"""
+    def test_api_get_data_with_region(self):
+        """Test that the API get_data method works with a specific region"""
         # Arrange
-        test_api_key = os.environ.get("SURFLINE_API_KEY", "test_key_123")
-        api = authorize(test_api_key)
+        api = authorize()
         
-        # Act - use a different spot ID (Pipeline, Hawaii)
-        response = api.get_data(spot_id="5842041f4e65fad6a7708964")
+        # Act - use a specific region
+        response = api.get_data(region="europe")
         
         # Assert
         assert response is not None
         assert "location" in response
-        # The rest of the assertions depend on the actual response
+        assert response["region"] == "Europe"
     
-    def test_api_with_invalid_key(self):
-        """Test that the API handles invalid API keys appropriately"""
-        # This test will be expected to fail with an exception
-        # since we've removed the mock fallback
-        
+    def test_api_with_invalid_region(self):
+        """Test that the API handles invalid regions appropriately"""
         # Arrange
-        invalid_api_key = "invalid_key_that_will_fail"
-        api = authorize(invalid_api_key)
+        api = authorize()
         
         # Act & Assert
         with pytest.raises(requests.exceptions.RequestException):
-            api.get_data()
+            api.get_data(region="invalid_region_name")
         
-    def test_process_surf_data(self):
-        """Test that surf data is processed correctly"""
+    def test_process_country_data(self):
+        """Test that country data is processed correctly"""
         # Arrange
         test_data = {
-            "location": "Test Beach",
-            "wave_height": "2-3 ft",
-            "wind": "10 mph offshore",
-            "tide": "low",
-            "temperature": "68°F",
+            "location": "Test Country",
+            "population": "15,000,000",
+            "region": "Europe",
+            "subregion": "Western Europe",
+            "capital": "Test City",
+            "languages": "English, French",
             "timestamp": "2025-05-31 12:00"
         }
         
@@ -83,27 +77,28 @@ class TestSurfReport:
         processed = process_surf_data(test_data)
         
         # Assert
-        assert processed["conditions"] == "Good"
-        assert processed["beginner_friendly"] == True
+        assert processed["size_category"] == "Medium"
+        assert processed["tourist_friendly"] == True
         
-    def test_format_surf_report(self):
-        """Test that the surf report is formatted correctly"""
+    def test_format_country_report(self):
+        """Test that the country report is formatted correctly"""
         # Arrange
         test_data = {
-            "location": "Test Beach",
-            "wave_height": "2-3 ft",
-            "wind": "10 mph offshore",
-            "tide": "low",
-            "temperature": "68°F",
+            "location": "Test Country",
+            "population": "15,000,000",
+            "region": "Europe",
+            "subregion": "Western Europe",
+            "capital": "Test City",
+            "languages": "English, French",
             "timestamp": "2025-05-31 12:00",
-            "conditions": "Good",
-            "beginner_friendly": True
+            "size_category": "Medium",
+            "tourist_friendly": True
         }
         
         # Act
         report = format_surf_report(test_data)
         
         # Assert
-        assert "SURF REPORT - Test Beach" in report
-        assert "Wave Height: 2-3 ft" in report
-        assert "Good for beginners" in report
+        assert "COUNTRY REPORT - Test Country" in report
+        assert "Population: 15,000,000" in report
+        assert "Popular tourist destination" in report

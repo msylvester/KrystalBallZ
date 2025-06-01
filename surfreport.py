@@ -2,31 +2,34 @@ import argparse
 import requests
 from datetime import datetime
 import logging
+import random
 
 # Configure logging
-logger = logging.getLogger("surfreport")
+logger = logging.getLogger("countryreport")
 
-class SurfReportAPI:
-    def __init__(self, api_key):
-        self.api_key = api_key
-        self.base_url = "https://api.surfline.com/v1/forecasts"
+class CountryReportAPI:
+    def __init__(self, api_key=None):
+        self.api_key = api_key  # Not needed for countries API but kept for compatibility
+        self.base_url = "https://restcountries.com/v3.1"
         self.headers = {
-            "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json"
         }
         
-    def get_data(self, spot_id="5842041f4e65fad6a7708890"):  # Default to Malibu Beach spot ID
+    def get_data(self, region=None):
         """
-        Get surf report data from the API
+        Get country data from the API
         
         Args:
-            spot_id (str): The ID of the surf spot to get data for
+            region (str): Optional region to filter countries by
             
         Returns:
-            dict: Processed surf report data
+            dict: Processed country report data
         """
         # Make the actual API request
-        url = f"{self.base_url}/{spot_id}"
+        url = f"{self.base_url}/all"
+        if region:
+            url = f"{self.base_url}/region/{region}"
+            
         logger.info(f"Making API request to {url}")
         
         response = requests.get(
@@ -39,66 +42,72 @@ class SurfReportAPI:
         response.raise_for_status()
         data = response.json()
         
+        # Select a random country from the response
+        country = random.choice(data)
+        
         # Process the API response into our expected format
         return {
-            "api_key_used": self.api_key,
-            "status": "authorized",
-            "location": data.get("spot", {}).get("name", "Unknown Beach"),
-            "wave_height": f"{data.get('forecast', {}).get('waveHeight', {}).get('min', 0)}-{data.get('forecast', {}).get('waveHeight', {}).get('max', 0)} ft",
-            "wind": f"{data.get('forecast', {}).get('wind', {}).get('speed', 0)} mph {data.get('forecast', {}).get('wind', {}).get('direction', 'unknown')}",
-            "tide": data.get('forecast', {}).get('tide', {}).get('type', 'unknown'),
-            "temperature": f"{data.get('forecast', {}).get('temperature', {}).get('water', 0)}°F",
+            "api_key_used": self.api_key or "Not required",
+            "status": "success",
+            "location": country.get("name", {}).get("common", "Unknown Country"),
+            "population": f"{country.get('population', 0):,}",
+            "region": country.get("region", "Unknown"),
+            "subregion": country.get("subregion", "Unknown"),
+            "capital": ", ".join(country.get("capital", ["Unknown"])),
+            "languages": ", ".join(country.get("languages", {}).values()),
             "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M")
         }
 
-def authorize(api_key):
-    """Authorize with the surf report API"""
-    return SurfReportAPI(api_key)
+def authorize(api_key=None):
+    """Authorize with the country report API"""
+    return CountryReportAPI(api_key)
 
 def process_surf_data(data):
-    """Process the surf data"""
+    """Process the country data"""
     # Add derived information based on raw data
-    if "offshore" in data["wind"].lower():
-        data["conditions"] = "Good"
-    elif "onshore" in data["wind"].lower():
-        data["conditions"] = "Poor"
+    population = int(data["population"].replace(",", ""))
+    
+    if population > 100000000:
+        data["size_category"] = "Large"
+    elif population > 10000000:
+        data["size_category"] = "Medium"
     else:
-        data["conditions"] = "Fair"
+        data["size_category"] = "Small"
         
-    # Calculate if it's suitable for beginners
-    wave_height = data["wave_height"].split("-")[0]
-    if wave_height and float(wave_height) < 3:
-        data["beginner_friendly"] = True
+    # Calculate if it's suitable for tourism
+    if data["region"] in ["Europe", "Oceania", "Americas"]:
+        data["tourist_friendly"] = True
     else:
-        data["beginner_friendly"] = False
+        data["tourist_friendly"] = False
         
     return data
 
 def format_surf_report(data):
-    """Format the surf report for display"""
-    beginner_msg = "Good for beginners!" if data.get("beginner_friendly") else "Not recommended for beginners"
+    """Format the country report for display"""
+    tourist_msg = "Popular tourist destination!" if data.get("tourist_friendly") else "Less common tourist destination"
     
-    return f"🏄 SURF REPORT - {data['location']} ({data['timestamp']})\n\n" \
-           f"Wave Height: {data['wave_height']}\n" \
-           f"Wind: {data['wind']}\n" \
-           f"Tide: {data['tide']}\n" \
-           f"Temperature: {data['temperature']}\n" \
-           f"Conditions: {data['conditions']}\n" \
-           f"Note: {beginner_msg}"
+    return f"🌍 COUNTRY REPORT - {data['location']} ({data['timestamp']})\n\n" \
+           f"Population: {data['population']}\n" \
+           f"Region: {data['region']}\n" \
+           f"Subregion: {data['subregion']}\n" \
+           f"Capital: {data['capital']}\n" \
+           f"Languages: {data['languages']}\n" \
+           f"Size Category: {data['size_category']}\n" \
+           f"Note: {tourist_msg}"
 
 def main():
-    parser = argparse.ArgumentParser(description='Get surf report using API key')
-    parser.add_argument('api_key', help='API key for surf report service')
+    parser = argparse.ArgumentParser(description='Get country report')
+    parser.add_argument('--region', help='Optional region to filter by (Africa, Americas, Asia, Europe, Oceania)', default=None)
     args = parser.parse_args()
     
-    # Initialize API with provided key
-    api = authorize(args.api_key)
+    # Initialize API (no key needed)
+    api = authorize()
     
-    # Get surf data
-    surf_data = api.get_data()
+    # Get country data
+    country_data = api.get_data(region=args.region)
     
     # Process data
-    processed_data = process_surf_data(surf_data)
+    processed_data = process_surf_data(country_data)
     
     # Format and print report
     report = format_surf_report(processed_data)
