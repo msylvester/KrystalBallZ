@@ -25,50 +25,29 @@ class SurfReportAPI:
         Returns:
             dict: Processed surf report data
         """
-        try:
-            # Make the actual API request
-            url = f"{self.base_url}/{spot_id}"
-            logger.info(f"Making API request to {url}")
-            
-            response = requests.get(
-                url,
-                headers=self.headers,
-                timeout=10
-            )
-            
-            # Check if request was successful
-            response.raise_for_status()
-            data = response.json()
-            
-            # Process the API response into our expected format
-            # Note: This would need to be adjusted based on the actual API response structure
-            return {
-                "api_key_used": self.api_key,
-                "status": "authorized",
-                "location": data.get("spot", {}).get("name", "Malibu Beach"),
-                "wave_height": f"{data.get('forecast', {}).get('waveHeight', {}).get('min', 3)}-{data.get('forecast', {}).get('waveHeight', {}).get('max', 4)} ft",
-                "wind": f"{data.get('forecast', {}).get('wind', {}).get('speed', 5)} mph {data.get('forecast', {}).get('wind', {}).get('direction', 'offshore')}",
-                "tide": data.get('forecast', {}).get('tide', {}).get('type', 'rising'),
-                "temperature": f"{data.get('forecast', {}).get('temperature', {}).get('water', 72)}°F",
-                "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M")
-            }
-            
-        except requests.exceptions.RequestException as e:
-            logger.error(f"API request failed: {str(e)}")
-            # Fall back to mock data if the API request fails
-            logger.info("Falling back to mock data")
-            return self._get_mock_data()
-            
-    def _get_mock_data(self):
-        """Provide mock data as a fallback"""
+        # Make the actual API request
+        url = f"{self.base_url}/{spot_id}"
+        logger.info(f"Making API request to {url}")
+        
+        response = requests.get(
+            url,
+            headers=self.headers,
+            timeout=10
+        )
+        
+        # Check if request was successful
+        response.raise_for_status()
+        data = response.json()
+        
+        # Process the API response into our expected format
         return {
             "api_key_used": self.api_key,
             "status": "authorized",
-            "location": "Malibu Beach",
-            "wave_height": "3-4 ft",
-            "wind": "5 mph offshore",
-            "tide": "rising",
-            "temperature": "72°F",
+            "location": data.get("spot", {}).get("name", "Unknown Beach"),
+            "wave_height": f"{data.get('forecast', {}).get('waveHeight', {}).get('min', 0)}-{data.get('forecast', {}).get('waveHeight', {}).get('max', 0)} ft",
+            "wind": f"{data.get('forecast', {}).get('wind', {}).get('speed', 0)} mph {data.get('forecast', {}).get('wind', {}).get('direction', 'unknown')}",
+            "tide": data.get('forecast', {}).get('tide', {}).get('type', 'unknown'),
+            "temperature": f"{data.get('forecast', {}).get('temperature', {}).get('water', 0)}°F",
             "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M")
         }
 

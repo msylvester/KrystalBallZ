@@ -54,20 +54,18 @@ class TestSurfReport:
         assert "location" in response
         # The rest of the assertions depend on the actual response
     
-    def test_api_fallback_with_invalid_key(self):
-        """Test that the API falls back to mock data with an invalid API key"""
+    def test_api_with_invalid_key(self):
+        """Test that the API handles invalid API keys appropriately"""
+        # This test will be expected to fail with an exception
+        # since we've removed the mock fallback
+        
         # Arrange
         invalid_api_key = "invalid_key_that_will_fail"
         api = authorize(invalid_api_key)
         
-        # Act
-        response = api.get_data()
-        
-        # Assert - should fall back to mock data
-        assert response is not None
-        assert response["api_key_used"] == invalid_api_key
-        assert response["status"] == "authorized"
-        assert response["location"] == "Malibu Beach"  # This is from the mock data
+        # Act & Assert
+        with pytest.raises(requests.exceptions.RequestException):
+            api.get_data()
         
     def test_process_surf_data(self):
         """Test that surf data is processed correctly"""
