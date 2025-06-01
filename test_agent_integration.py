@@ -182,7 +182,7 @@ class TestAgentIntegration:
             mock_tools.__getitem__.return_value = MagicMock(return_value="mocked response")
 
             if expected_service == "gpt":
-                with patch('openai.OpenAI') as mock_openai:
+                with patch('stream_app.OpenAI') as mock_openai:
                     mock_client = MagicMock()
                     mock_response = MagicMock()
                     mock_response.choices[0].message.content = "GPT response"
@@ -271,7 +271,7 @@ class TestAgentIntegration:
         # Should extract limit of 10
         assert isinstance(response, str)
     
-    @patch('openai.OpenAI')
+    @patch('stream_app.OpenAI')
     def test_agent_gpt_fallback_integration(self, mock_openai):
         """Test that non-tool queries fall back to GPT-3.5"""
         # Mock OpenAI response
