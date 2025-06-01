@@ -19,15 +19,16 @@ class TestSurfReport:
     
     def test_api_get_data_real_request(self):
         """Test that the API get_data method works with real network requests"""
-        print('about to test data')
+        print('\n[TEST] Starting real API request test')
         # Arrange
         test_api_key = os.environ.get("SURFLINE_API_KEY", "test_key_123")
         api = authorize(test_api_key)
         
         # Act
+        print(f'[TEST] Making API request with key: {test_api_key[:3]}{"*" * (len(test_api_key) - 3)}')
         response = api.get_data()  # This will make a real network request
 
-        print(f'the response i {response}')
+        print(f'[TEST] Response received: {json.dumps(response, indent=2)}')
         
         # Assert
         assert response is not None
