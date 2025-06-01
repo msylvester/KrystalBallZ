@@ -13,7 +13,37 @@ Emphasis will be on MCP, RAG, and, generally, multi-agent software & development
    ```
    pip install -r requirements.txt
    ```
-2. Run the application:
+
+2. There are unit tests 🥳
+
+Here are all the test methods from the file as a comma-separated list:
+```  pytest test_agent_integration.py -v ```
+A number of tests to verify that the integration of the API calls and the chatbot work seamlessly
+
+test_agent_initialization
+test_agent_country_query_integration
+test_agent_country_with_region_integration
+test_agent_job_search_integration
+test_agent_job_search_with_location_integration
+test_agent_san_francisco_jobs_integration
+test_agent_job_search_with_limit_integration
+test_agent_no_api_key_error
+test_agent_multiple_events_history
+test_agent_case_insensitive_routing
+test_agent_tools_accessibility
+test_agent_logging_integration
+test_agent_routing_logic
+
+
+```  pytest test_country_report.py -v ``` 
+test_api_authorization
+test_api_get_data_real_request
+test_api_get_data_with_region
+test_api_with_invalid_region
+test_process_country_data
+test_format_country_report
+
+3. Run the application:
    ```
    streamlit run stream_app.py
    ```
