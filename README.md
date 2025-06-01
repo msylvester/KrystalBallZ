@@ -58,11 +58,11 @@ Tests included:
 - `test_api_with_invalid_region`
 - `test_process_country_data`
 - `test_format_country_report`
-```
 
+## 🚀 Usage
 
-3. Run the application:
-   ```
+2. Run the application:
+   ```bash
    streamlit run stream_app.py
    ```
 
@@ -76,6 +76,6 @@ Tests included:
 - Streamlit
 - Python
 
-## Contributors 
-- **ashruidan** [https://github.com/ashruidan]
-- **krystal_mess323**: [twitch.tv/krystal_mess323](https://www.twitch.tv/krystal_mess323)
+## 👥 Contributors 
+- **ashruidan** - [https://github.com/ashruidan](https://github.com/ashruidan)
+- **krystal_mess323** - [twitch.tv/krystal_mess323](https://www.twitch.tv/krystal_mess323)
