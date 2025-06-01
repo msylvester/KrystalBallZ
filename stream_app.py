@@ -178,8 +178,10 @@ def main():
                 st.text(log)
 
     # User input section
-    user_input = st.text_input("Enter event data", "")
-    if st.button("Submit Event"):
+    user_input = st.text_input("Enter event data", key="user_input_field")
+    
+    # Use a unique key for the button to ensure it refreshes properly
+    if st.button("Submit Event", key="submit_event_button"):
         if user_input:
             logger.info(f"User submitted: '{user_input}'")
             response = st.session_state.agent.process_event(user_input)
@@ -201,6 +203,9 @@ def main():
             
             st.success(response)
             logger.info("Response displayed to user")
+            
+            # Clear the input field after submission
+            st.session_state.user_input_field = ""
         else:
             st.warning("Please enter event data")
             logger.warning("User attempted to submit empty input")
