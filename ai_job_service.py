@@ -14,31 +14,33 @@ class AIJobSearchService:
 
     def get_ai_jobs(self, location="", limit=10):
         """
-        Returns a dummy job report string.
-        In production, this would connect to the Jooble API or use internal logic.
+        Connects to the Jooble API to get job postings.
         """
-        # If San Francisco data is requested, simulate special behavior.
+        import requests
         if "san francisco" in location.lower():
             location = "San Francisco, CA"
-        return f"🤖 AI ENGINEERING JOBS REPORT: Found {limit} jobs in {location}"
-
-    def _fetch_job_data(self, location, limit):
-        """
-        Simulate fetching job data.
-        """
-        logger.info(f"Fetching job data for location: {location}, limit: {limit}")
-        # The dummy data mimics the real structure expected by the API layer.
-        return {
-            "jobs": [{"title": "Mock Job", "company": "Mock Company"}],
-            "total_results": 1,
-            "timestamp": "2025-06-01T12:00:00Z"
+        
+        if not self.api_key:
+            raise Exception("Jooble API key is required for job search.")
+        
+        payload = {
+            "keywords": "ai engineering",
+            "location": location,
+            "limit": limit
         }
+        url = "https://jooble.org/api"
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {self.api_key}"
+        }
+        response = requests.post(url, json=payload, headers=headers)
+        if response.status_code != 200:
+            raise Exception(f"Jooble API error: {response.text}")
+        data = response.json()
+        total = data.get("totalResults", limit)
+        return f"🤖 AI ENGINEERING JOBS REPORT: Found {total} jobs in {location}"
 
-    def _process_job_data(self, job_data):
-        """
-        Process fetched job data.
-        """
-        return job_data
+
 
 # Setup FastAPI app
 app = FastAPI(title="AI Job Search API", version="1.0")
