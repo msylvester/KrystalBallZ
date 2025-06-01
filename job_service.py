@@ -2,6 +2,7 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import JSONResponse
 import logging
 import os
+from ai_job_service import AIJobSearchService
 
 # Configure logging for the API
 logging.basicConfig(level=logging.INFO)
