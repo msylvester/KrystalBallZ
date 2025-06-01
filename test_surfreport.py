@@ -1,4 +1,5 @@
 import pytest
+import json
 import requests
 import os
 from surfreport import SurfReportAPI, authorize, process_surf_data, format_surf_report
