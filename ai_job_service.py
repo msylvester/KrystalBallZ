@@ -34,13 +34,17 @@ class AIJobSearchService:
             "Authorization": f"Bearer {self.api_key}"
         }
         response = requests.post(url, json=payload, headers=headers)
+
+        print(f' the response is {response}')
         if response.status_code != 200:
             if "text/html" in response.headers.get("Content-Type", ""):
                 total = limit
+                print(f'it failed homie {total}')
                 return f"🤖 AI ENGINEERING JOBS REPORT: Found {total} jobs in {location}"
             raise Exception(f"Jooble API error: {response.text}")
         data = response.json()
         total = data.get("totalResults", limit)
+        print(f'return, it suceeded {total}')
         return f"🤖 AI ENGINEERING JOBS REPORT: Found {total} jobs in {location}"
 
 
