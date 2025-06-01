@@ -2,7 +2,7 @@ import pytest
 import json
 import requests
 import os
-from surfreport import CountryReportAPI, authorize, process_surf_data, format_surf_report
+from country_report import CountryReportAPI, authorize, process_surf_data, format_surf_report
 
 class TestCountryReport:
     def test_api_authorization(self):
