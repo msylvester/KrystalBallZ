@@ -76,25 +76,25 @@ class TestAgentIntegration:
         # Should extract limit of 10
         assert isinstance(response, str)
 
-    # @patch('openai.OpenAI')
-    # def test_agent_gpt_fallback_integration(self, mock_openai):
-    #     """Test that non-tool queries fall back to GPT-3.5"""
-    #     # Mock OpenAI response
-    #     mock_client = MagicMock()
-    #     mock_response = MagicMock()
-    #     mock_response.choices[0].message.content = "This is a GPT response"
-    #     mock_client.chat.completions.create.return_value = mock_response
-    #     mock_openai.return_value = mock_client
+    @patch('openai.OpenAI')
+    def test_agent_gpt_fallback_integration(self, mock_openai):
+        """Test that non-tool queries fall back to GPT-3.5"""
+        # Mock OpenAI response
+        mock_client = MagicMock()
+        mock_response = MagicMock()
+        mock_response.choices[0].message.content = "This is a GPT response"
+        mock_client.chat.completions.create.return_value = mock_response
+        mock_openai.return_value = mock_client
 
-    #     # Set API key for this test
-    #     self.agent.api_key = "test-key"
+        # Set API key for this test
+        self.agent.api_key = "test-key"
 
-    #     response = self.agent.process_event("What is the weather like?")
+        response = self.agent.process_event("What is the weather like?")
 
-    #     assert response == "This is a GPT response"
-    #     assert len(self.agent.get_event_history()) == 1
-    #     mock_openai.assert_called_once_with(api_key="test-key")
-    #     mock_client.chat.completions.create.assert_called_once()
+        assert response == "This is a GPT response"
+        assert len(self.agent.get_event_history()) == 1
+        mock_openai.assert_called_once_with(api_key="test-key")
+        mock_client.chat.completions.create.assert_called_once()
 
     def test_agent_no_api_key_error(self):
         """Test behavior when OpenAI API key is not set"""
@@ -271,25 +271,25 @@ class TestAgentIntegration:
         # Should extract limit of 10
         assert isinstance(response, str)
     
-    # @patch('openai.OpenAI')
-    # def test_agent_gpt_fallback_integration(self, mock_openai):
-    #     """Test that non-tool queries fall back to GPT-3.5"""
-    #     # Mock OpenAI response
-    #     mock_client = MagicMock()
-    #     mock_response = MagicMock()
-    #     mock_response.choices[0].message.content = "This is a GPT response"
-    #     mock_client.chat.completions.create.return_value = mock_response
-    #     mock_openai.return_value = mock_client
+    @patch('openai.OpenAI')
+    def test_agent_gpt_fallback_integration(self, mock_openai):
+        """Test that non-tool queries fall back to GPT-3.5"""
+        # Mock OpenAI response
+        mock_client = MagicMock()
+        mock_response = MagicMock()
+        mock_response.choices[0].message.content = "This is a GPT response"
+        mock_client.chat.completions.create.return_value = mock_response
+        mock_openai.return_value = mock_client
         
-    #     # Set API key for this test
-    #     self.agent.api_key = "test-key"
+        # Set API key for this test
+        self.agent.api_key = "test-key"
         
-    #     response = self.agent.process_event("What is the weather like?")
+        response = self.agent.process_event("What is the weather like?")
         
-    #     assert response == "This is a GPT response"
-    #     assert len(self.agent.get_event_history()) == 1
-    #     mock_openai.assert_called_once_with(api_key="test-key")
-    #     mock_client.chat.completions.create.assert_called_once()
+        assert response == "This is a GPT response"
+        assert len(self.agent.get_event_history()) == 1
+        mock_openai.assert_called_once_with(api_key="test-key")
+        mock_client.chat.completions.create.assert_called_once()
     
     def test_agent_no_api_key_error(self):
         """Test behavior when OpenAI API key is not set"""
