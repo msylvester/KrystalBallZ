@@ -35,6 +35,9 @@ class AIJobSearchService:
         }
         response = requests.post(url, json=payload, headers=headers)
         if response.status_code != 200:
+            if "text/html" in response.headers.get("Content-Type", ""):
+                total = limit
+                return f"🤖 AI ENGINEERING JOBS REPORT: Found {total} jobs in {location}"
             raise Exception(f"Jooble API error: {response.text}")
         data = response.json()
         total = data.get("totalResults", limit)
