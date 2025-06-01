@@ -177,40 +177,47 @@ def main():
             for log in st.session_state.log_messages:
                 st.text(log)
 
-    # User input section
-    user_input = st.text_input("Enter event data", key="user_input_field")
+    # Initialize session state for form submission if not exists
+    if 'last_submitted' not in st.session_state:
+        st.session_state.last_submitted = ""
     
-    # Use a unique key for the button to ensure it refreshes properly
-    if st.button("Submit Event", key="submit_event_button"):
-        print(f'here we are')
-        if user_input:
-
-            logger.info(f"User submitted: '{user_input}'")
-            response = st.session_state.agent.process_event(user_input)
-            
-            # Determine which service was used
-            service_used = None
-            if "AI ENGINEERING JOBS REPORT" in response:
-                service_used = "AI Job Search Service"
-                logger.info("Response identified as coming from AI Job Search Service")
-            elif "COUNTRY REPORT" in response:
-                service_used = "Country Report Service"
-                logger.info("Response identified as coming from Country Report Service")
-            else:
-                logger.info("Response identified as coming from GPT-3.5")
-            
-            # Display the response with service indicator if applicable
-            if service_used:
-                st.markdown(f"<div style='background-color: #e6f3ff; padding: 10px; border-radius: 5px; margin-bottom: 10px;'><strong>🔧 Using {service_used}</strong></div>", unsafe_allow_html=True)
-            
-            st.success(response)
-            logger.info("Response displayed to user")
-            
-            # We can't directly modify session state after the button is clicked
-            # The field will be cleared on the next rerun automatically
+    # Create a form for more reliable input handling
+    with st.form(key="input_form", clear_on_submit=True):
+        user_input = st.text_input("Enter event data", key="user_input_field")
+        submit_button = st.form_submit_button("Submit Event")
+        
+        if submit_button and user_input:
+            # Store the input in session state to process after form submission
+            st.session_state.last_submitted = user_input
+    
+    # Process the submission outside the form
+    if st.session_state.last_submitted:
+        current_input = st.session_state.last_submitted
+        logger.info(f"Processing submission: '{current_input}'")
+        
+        # Get response from agent
+        response = st.session_state.agent.process_event(current_input)
+        
+        # Determine which service was used
+        service_used = None
+        if "AI ENGINEERING JOBS REPORT" in response:
+            service_used = "AI Job Search Service"
+            logger.info("Response identified as coming from AI Job Search Service")
+        elif "COUNTRY REPORT" in response:
+            service_used = "Country Report Service"
+            logger.info("Response identified as coming from Country Report Service")
         else:
-            st.warning("Please enter event data")
-            logger.warning("User attempted to submit empty input")
+            logger.info("Response identified as coming from GPT-3.5")
+        
+        # Display the response with service indicator if applicable
+        if service_used:
+            st.markdown(f"<div style='background-color: #e6f3ff; padding: 10px; border-radius: 5px; margin-bottom: 10px;'><strong>🔧 Using {service_used}</strong></div>", unsafe_allow_html=True)
+        
+        st.success(response)
+        logger.info("Response displayed to user")
+        
+        # Clear the last submitted value to prevent re-processing
+        st.session_state.last_submitted = ""
 
 if __name__ == '__main__':
     main()
