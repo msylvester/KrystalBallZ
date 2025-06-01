@@ -5,7 +5,7 @@ import requests
 import json
 import logging
 from datetime import datetime
-from country_report import CountryReportAPI
+from country_report import CountryReportAPI, authorize, process_country_data, format_country_report
 from job_service import AIJobSearchService
 
 # Configure logging
