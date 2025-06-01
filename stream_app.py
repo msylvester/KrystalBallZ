@@ -104,22 +104,43 @@ class Agent:
         except Exception as e:
             self.logger.error(f"Error processing with GPT-3.5: {str(e)}")
             return f"Error processing with GPT-3.5: {str(e)}"
-            
     
     def get_event_history(self):
         return self.event_history
 
+# Custom log handler class - moved outside main() for better organization
+class StreamlitLogHandler(logging.Handler):
+    def emit(self, record):
+        # Defensive check - initialize if not exists
+        if 'log_messages' not in st.session_state:
+            st.session_state.log_messages = []
+        
+        log_entry = self.format(record)
+        if len(st.session_state.log_messages) > 100:  # Limit to last 100 logs
+            st.session_state.log_messages.pop(0)
+        st.session_state.log_messages.append(log_entry)
+
 def main():
     st.title("GPT-3.5 Powered Agent App")
 
-    # Initialize session state
+    # Initialize session state variables FIRST - before creating any objects
+    if 'show_logs' not in st.session_state:
+        st.session_state.show_logs = False
+    
+    if 'log_messages' not in st.session_state:
+        st.session_state.log_messages = []
+    
+    # Add the custom log handler early, before creating Agent
+    if not any(isinstance(h, StreamlitLogHandler) for h in logging.getLogger().handlers):
+        streamlit_handler = StreamlitLogHandler()
+        streamlit_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
+        logging.getLogger().addHandler(streamlit_handler)
+        logger.info("Streamlit log handler added")
+
+    # NOW initialize the agent (after log_messages is ready)
     if 'agent' not in st.session_state:
         st.session_state.agent = Agent()
         logger.info("Agent initialized in session state")
-    
-    if 'show_logs' not in st.session_state:
-        st.session_state.show_logs = False
-        st.session_state.log_messages = []
     
     # Sidebar controls
     api_key = st.sidebar.text_input(
@@ -141,21 +162,6 @@ def main():
             logger.info("Debug logs enabled in UI")
         else:
             logger.info("Debug logs disabled in UI")
-    
-    # Add a custom log handler to capture logs for display
-    class StreamlitLogHandler(logging.Handler):
-        def emit(self, record):
-            log_entry = self.format(record)
-            if len(st.session_state.log_messages) > 100:  # Limit to last 100 logs
-                st.session_state.log_messages.pop(0)
-            st.session_state.log_messages.append(log_entry)
-    
-    # Only add the handler once
-    if not any(isinstance(h, StreamlitLogHandler) for h in logging.getLogger().handlers):
-        streamlit_handler = StreamlitLogHandler()
-        streamlit_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
-        logging.getLogger().addHandler(streamlit_handler)
-        logger.info("Streamlit log handler added")
 
     # Display event history
     if st.session_state.agent.get_event_history():
