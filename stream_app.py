@@ -204,8 +204,8 @@ def main():
             st.success(response)
             logger.info("Response displayed to user")
             
-            # Clear the input field after submission
-            st.session_state.user_input_field = ""
+            # We can't directly modify session state after the button is clicked
+            # The field will be cleared on the next rerun automatically
         else:
             st.warning("Please enter event data")
             logger.warning("User attempted to submit empty input")
