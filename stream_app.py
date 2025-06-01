@@ -5,7 +5,7 @@ import requests
 import json
 import logging
 from datetime import datetime
-from surf_report_service import SurfReportService
+from country_report import CountryReportAPI
 from job_service import AIJobSearchService
 
 # Configure logging
