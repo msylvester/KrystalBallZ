@@ -1,6 +1,11 @@
 from datetime import datetime
+import surfreport
 
 class SurfReportService:
+    def __init__(self):
+        # Initialize with API key
+        self.api = surfreport.authorize('waveswaveswaves')
+        
     def get_surf_report(self):
         """MCP implementation to get surf report data"""
         try:
@@ -17,8 +22,10 @@ class SurfReportService:
     
     def _fetch_surf_data(self):
         """Model component: Fetch surf data from API"""
-        # In a real implementation, this would call an actual surf API
-        # For demonstration, returning mock data
+        # Use the surf report API
+        api_response = self.api.get_data()
+        # For demonstration, still returning mock data but logging API usage
+        print(f"Using surf API with key: {api_response['api_key_used']}")
         return {
             "location": "Malibu Beach",
             "wave_height": "3-4 ft",

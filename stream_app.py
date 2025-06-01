@@ -40,7 +40,7 @@ class Agent:
             return "Error: OpenAI API key not set"
         
         # Check if this is a tool request
-        if "surf report" in event.lower():
+        if "surf" in event.lower():
             self.logger.info("Routing to surf report service")
             return self.tools["surf_report"]()
         elif "ai jobs" in event.lower() or "job search" in event.lower():
