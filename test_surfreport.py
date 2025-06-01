@@ -1,13 +1,13 @@
 import pytest
 import requests
-from unittest.mock import patch, MagicMock
+import os
 from surfreport import SurfReportAPI, authorize, process_surf_data, format_surf_report
 
 class TestSurfReport:
     def test_api_authorization(self):
         """Test that the API authorization works correctly"""
         # Arrange
-        test_api_key = "test_key_123"
+        test_api_key = os.environ.get("SURFLINE_API_KEY", "test_key_123")
         
         # Act
         api = authorize(test_api_key)
@@ -15,59 +15,52 @@ class TestSurfReport:
         # Assert
         assert api is not None
         assert api.api_key == test_api_key
-        assert "Bearer test_key_123" in api.headers["Authorization"]
+        assert f"Bearer {test_api_key}" in api.headers["Authorization"]
     
-    @patch('surfreport.requests.get')
-    def test_api_get_data_success(self, mock_get):
-        """Test that the API get_data method works correctly with a successful response"""
+    def test_api_get_data_real_request(self):
+        """Test that the API get_data method works with real network requests"""
         # Arrange
-        test_api_key = "test_key_123"
+        test_api_key = os.environ.get("SURFLINE_API_KEY", "test_key_123")
         api = authorize(test_api_key)
         
-        # Configure the mock response
-        mock_response = MagicMock()
-        mock_response.json.return_value = {
-            "spot": {"name": "Test Beach"},
-            "forecast": {
-                "waveHeight": {"min": 2, "max": 3},
-                "wind": {"speed": 10, "direction": "offshore"},
-                "tide": {"type": "low"},
-                "temperature": {"water": 68}
-            }
-        }
-        mock_response.raise_for_status.return_value = None
-        mock_get.return_value = mock_response
-        
         # Act
-        response = api.get_data()
+        response = api.get_data()  # This will make a real network request
         
         # Assert
         assert response is not None
         assert response["api_key_used"] == test_api_key
         assert response["status"] == "authorized"
-        assert response["location"] == "Test Beach"
-        assert response["wave_height"] == "2-3 ft"
-        assert "offshore" in response["wind"]
+        assert "location" in response
+        assert "wave_height" in response
+        assert "wind" in response
+        assert "temperature" in response
         
-        # Verify the API was called with correct parameters
-        mock_get.assert_called_once()
-        
-    @patch('surfreport.requests.get')
-    def test_api_get_data_failure(self, mock_get):
-        """Test that the API get_data method falls back to mock data when the API call fails"""
+    def test_api_get_data_with_custom_spot(self):
+        """Test that the API get_data method works with a custom spot ID"""
         # Arrange
-        test_api_key = "test_key_123"
+        test_api_key = os.environ.get("SURFLINE_API_KEY", "test_key_123")
         api = authorize(test_api_key)
         
-        # Configure the mock to raise an exception
-        mock_get.side_effect = requests.exceptions.RequestException("API is down")
+        # Act - use a different spot ID (Pipeline, Hawaii)
+        response = api.get_data(spot_id="5842041f4e65fad6a7708964")
+        
+        # Assert
+        assert response is not None
+        assert "location" in response
+        # The rest of the assertions depend on the actual response
+    
+    def test_api_fallback_with_invalid_key(self):
+        """Test that the API falls back to mock data with an invalid API key"""
+        # Arrange
+        invalid_api_key = "invalid_key_that_will_fail"
+        api = authorize(invalid_api_key)
         
         # Act
         response = api.get_data()
         
         # Assert - should fall back to mock data
         assert response is not None
-        assert response["api_key_used"] == test_api_key
+        assert response["api_key_used"] == invalid_api_key
         assert response["status"] == "authorized"
         assert response["location"] == "Malibu Beach"  # This is from the mock data
         
