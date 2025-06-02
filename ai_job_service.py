@@ -2,6 +2,7 @@ import logging
 import os
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import JSONResponse
+import requests
 
 # Configure logging for the API
 logging.basicConfig(level=logging.INFO)
@@ -16,7 +17,6 @@ class AIJobSearchService:
         """
         Connects to the Jooble API to get job postings.
         """
-        import requests
         if "san francisco" in location.lower():
             location = "San Francisco, CA"
         
