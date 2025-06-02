@@ -10,7 +10,7 @@ load_dotenv()
 def main():
     api_key = os.environ.get("JOOBLE_API_KEY", "dummy")
     service = AIJobSearchService(api_key=api_key)
-    result = service.get_ai_jobs(location="Los Angeles", limit=3)
+    result = service.get_ai_jobs(location="New York", limit=3)
     print("Test result:", result)
     expected = "🤖 AI ENGINEERING JOBS REPORT: Found 3 jobs in New York"
     assert result == expected, f"Expected: {expected}, but got: {result}"
