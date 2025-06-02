@@ -26,7 +26,7 @@ class AIJobSearchService:
         payload = {
             "keywords": "ai engineering",
             "location": location,
-            "limit": limit
+            "page": 1
         }
         url = f"https://jooble.org/api/{self.api_key}"
         headers = {"Content-Type": "application/json"}
