@@ -40,6 +40,7 @@ class AIJobSearchService:
                 return f"🤖 AI ENGINEERING JOBS REPORT: Found {total} jobs in {location}"
             raise Exception(f"Jooble API error: {response.text}")
         data = response.json()
+        print(f'the data is {data}')
         total = data.get("totalResults", limit)
         print(f'return, it suceeded {total}')
         return f"🤖 AI ENGINEERING JOBS REPORT: Found {total} jobs in {location}"
