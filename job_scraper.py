@@ -1,6 +1,10 @@
-# Ensure you run "uv install playwright" to install Playwright dependencies.
+# Ensure you run "pip install playwright" and then "playwright install" to install Playwright dependencies.
 import requests
-from playwright.sync_api import sync_playwright
+try:
+    from playwright.sync_api import sync_playwright
+except ModuleNotFoundError:
+    import sys
+    sys.exit("ModuleNotFoundError: No module named 'playwright'. Please install it using 'pip install playwright' and then run 'playwright install'.")
 from bs4 import BeautifulSoup
 from datetime import datetime, timedelta
 
