@@ -17,14 +17,22 @@ def scrape_ai_jobs_for_rag():
     """
     url = "https://www.indeed.com/jobs?q=ai+engineer&l="
     print("Launching Playwright browser for scraping Indeed jobs")
+    storage_file = "playwright_storage.json"
     with sync_playwright() as p:
          browser = p.chromium.launch(headless=True)
-         context = browser.new_context(user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36",
-                                       locale="en-US")
+         context_kwargs = {
+             "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36",
+             "locale": "en-US"
+         }
+         import os
+         if os.path.exists(storage_file):
+             context_kwargs["storage_state"] = storage_file
+         context = browser.new_context(**context_kwargs)
          page = context.new_page()
          page.goto(url, timeout=60000)
          page.wait_for_load_state("networkidle", timeout=60000)
          content = page.content()
+         context.storage_state(path=storage_file)
          browser.close()
     soup = BeautifulSoup(content, "html.parser")
     job_cards = soup.find_all("div", class_="jobsearch-SerpJobCard")
