@@ -14,9 +14,7 @@ class TestAgentIntegration:
     def test_agent_initialization(self):
         """Test that Agent initializes correctly with all components"""
         assert self.agent.event_history == []
-        assert self.agent.country_service is not None
         assert self.agent.job_service is not None
-        assert "country_report" in self.agent.tools
         assert "ai_jobs" in self.agent.tools
         assert self.agent.logger is not None
 
@@ -170,8 +168,6 @@ class TestAgentIntegration:
             mock_logger.assert_called()
 
     @pytest.mark.parametrize("event,expected_service", [
-        ("Tell me about countries", "country"),
-        ("Show me nations in Europe", "country"),
         ("Find AI jobs", "job"),
         ("AI job search in NYC", "job"),
         ("What is the capital of France?", "gpt")  # Should fall back to GPT
@@ -215,25 +211,6 @@ class TestAgentIntegration:
         assert "ai_jobs" in self.agent.tools
         assert self.agent.logger is not None
     
-    def test_agent_country_query_integration(self):
-        """Test complete flow for country-related queries"""
-        # Test basic country query
-        response = self.agent.process_event("Tell me about countries")
-        
-        assert response is not None
-        assert len(self.agent.get_event_history()) == 1
-        assert self.agent.get_event_history()[0] == "Tell me about countries"
-        # Should contain country data or error message
-        assert isinstance(response, str)
-    
-    def test_agent_country_with_region_integration(self):
-        """Test country query with specific region"""
-        response = self.agent.process_event("Show me countries in Europe")
-        
-        assert response is not None
-        assert len(self.agent.get_event_history()) == 1
-        # The agent should extract "europe" as the region
-        assert isinstance(response, str)
     
     def test_agent_job_search_integration(self):
         """Test complete flow for AI job search queries"""
@@ -317,9 +294,9 @@ class TestAgentIntegration:
     def test_agent_multiple_events_history(self):
         """Test that event history accumulates correctly"""
         events = [
-            "Tell me about countries",
             "Find AI jobs",
-            "What is Python?"
+            "What is Python?",
+            "Show me jobs in Seattle"
         ]
         
         for event in events:
@@ -332,9 +309,8 @@ class TestAgentIntegration:
     def test_agent_case_insensitive_routing(self):
         """Test that routing works with different cases"""
         test_cases = [
-            "TELL ME ABOUT COUNTRIES",
             "find ai JOBS",
-            "Show me NATIONS in asia"
+            "Show me AI jobs in NYC"
         ]
         
         for event in test_cases:
@@ -344,10 +320,6 @@ class TestAgentIntegration:
     
     def test_agent_tools_accessibility(self):
         """Test that tools are properly accessible through the agent"""
-        # Test country tool directly
-        country_response = self.agent.tools["country_report"]()
-        assert country_response is not None
-        
         # Test job tool directly
         job_response = self.agent.tools["ai_jobs"]()
         assert job_response is not None
