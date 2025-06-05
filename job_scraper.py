@@ -60,7 +60,7 @@ def scrape_ai_jobs_for_rag():
          context.storage_state(path=storage_file)
          browser.close()
     soup = BeautifulSoup(content, "html.parser")
-    job_cards = soup.select("ul.jobs-search__results-list li")
+    job_cards = soup.select("li")
     print(f'The job cards found: {job_cards}')
     results = []
     for card in job_cards[:10]:
