@@ -142,6 +142,8 @@ def main():
     st.sidebar.divider()
     st.sidebar.subheader("Debug Options")
     show_logs = st.sidebar.checkbox("Show Debug Logs", value=st.session_state.show_logs)
+    if st.sidebar.button("ingest"):
+         st.sidebar.info("Alert")
     if show_logs != st.session_state.show_logs:
         st.session_state.show_logs = show_logs
         if show_logs:
