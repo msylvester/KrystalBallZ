@@ -23,6 +23,19 @@ class AIJobSearchService:
         if not self.api_key:
             raise Exception("Jooble API key is required for job search.")
         
+        try:
+            job_data = self._fetch_job_data(location, limit)
+            processed_data = self._process_job_data(job_data)
+            total = processed_data.get("total_results", 0)
+            return f"🤖 AI ENGINEERING JOBS REPORT: Found {total} jobs in {location}"
+        except Exception as e:
+            logger.error(f"Error in get_ai_jobs: {str(e)}")
+            raise
+
+    def _fetch_job_data(self, location="", limit=10):
+        """
+        Internal method to fetch raw job data from Jooble API.
+        """
         payload = {
             "keywords": "ai engineering",
             "location": location,
@@ -30,16 +43,43 @@ class AIJobSearchService:
         }
         url = f"https://jooble.org/api/{self.api_key}"
         headers = {"Content-Type": "application/json"}
+        
+        logger.info(f"Making request to Jooble API for location: {location}")
         response = requests.post(url, json=payload, headers=headers)
 
-        print(f' the response is {response}')
-        if response.status_code != 200:
-            raise Exception(f"Jooble API error: {response.text}")
-        data = response.json()
-        print(f'the data is {data}')
-        total = data.get("totalResults", limit)
-        print(f'return, it suceeded {total}')
-        return f"🤖 AI ENGINEERING JOBS REPORT: Found {total} jobs in {location}"
+        if response.status_code == 403:
+            raise Exception("Jooble API access forbidden - check API key validity")
+        elif response.status_code != 200:
+            raise Exception(f"Jooble API error: Status {response.status_code} - {response.text}")
+        
+        return response.json()
+
+    def _process_job_data(self, raw_data):
+        """
+        Internal method to process raw job data into structured format.
+        """
+        import datetime
+        
+        jobs = raw_data.get("jobs", [])
+        total_results = raw_data.get("totalCount", len(jobs))
+        
+        processed_jobs = []
+        for job in jobs:
+            processed_job = {
+                "title": job.get("title", ""),
+                "company": job.get("company", ""),
+                "location": job.get("location", ""),
+                "snippet": job.get("snippet", ""),
+                "salary": job.get("salary", ""),
+                "link": job.get("link", "")
+            }
+            processed_jobs.append(processed_job)
+        
+        return {
+            "jobs": processed_jobs,
+            "total_results": total_results,
+            "timestamp": datetime.datetime.now().isoformat()
+        }
 
 
 
