@@ -50,6 +50,10 @@ def scrape_ai_jobs_for_rag():
                     document.querySelectorAll('div[department="Engineering"]').length > 0
          }''', timeout=90000)
          content = page.content()
+         # Save debugging information
+         page.screenshot(path='debug.png')
+         with open('page_dump.html', 'w') as f:
+             f.write(content)
          context.storage_state(path=storage_file)
          browser.close()
     soup = BeautifulSoup(content, "html.parser")
