@@ -1,4 +1,5 @@
 import requests
+import cloudscraper
 from bs4 import BeautifulSoup
 from datetime import datetime, timedelta
 
@@ -12,12 +13,17 @@ def scrape_ai_jobs_for_rag():
     url = "https://www.indeed.com/jobs?q=ai+engineer&l="
     headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
     print(f'here we are')
-    response = requests.get(url, headers=headers)
+    scraper = cloudscraper.create_scraper(browser={
+        'browser': 'chrome',
+        'platform': 'windows',
+        'mobile': False
+    })
+    response = scraper.get(url)
     if response.status_code != 200:
          raise Exception(f"Failed to retrieve jobs, status code: {response.status_code}")
     soup = BeautifulSoup(response.text, "html.parser")
     job_cards = soup.find_all("div", class_="jobsearch-SerpJobCard")
-    prrint(f'the jobs cards are {job_cards}')
+    print(f'the jobs cards are {job_cards}')
     results = []
     for card in job_cards[:10]:
          title_elem = card.find("h2", class_="title")
