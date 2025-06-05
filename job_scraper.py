@@ -1,5 +1,5 @@
 import requests
-import cloudscraper
+from playwright.sync_api import sync_playwright
 from bs4 import BeautifulSoup
 from datetime import datetime, timedelta
 
@@ -11,21 +11,17 @@ def scrape_ai_jobs_for_rag():
     and filter out postings older than 30 days.
     """
     url = "https://www.indeed.com/jobs?q=ai+engineer&l="
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-        "Accept-Language": "en-US,en;q=0.5"
-    }
-    print(f'here we are')
-    scraper = cloudscraper.create_scraper(browser={
-        'browser': 'chrome',
-        'platform': 'windows',
-        'mobile': False
-    })
-    response = scraper.get(url, headers=headers)
-    if response.status_code != 200:
-         raise Exception(f"Failed to retrieve jobs, status code: {response.status_code}")
-    soup = BeautifulSoup(response.text, "html.parser")
+    print("Launching Playwright browser for scraping Indeed jobs")
+    with sync_playwright() as p:
+         browser = p.chromium.launch(headless=True)
+         context = browser.new_context(user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36",
+                                       locale="en-US")
+         page = context.new_page()
+         page.goto(url, timeout=60000)
+         page.wait_for_load_state("networkidle", timeout=60000)
+         content = page.content()
+         browser.close()
+    soup = BeautifulSoup(content, "html.parser")
     job_cards = soup.find_all("div", class_="jobsearch-SerpJobCard")
     print(f'the jobs cards are {job_cards}')
     results = []
