@@ -41,3 +41,12 @@ def scrape_ai_jobs_for_rag():
          }
          results.append(job)
     return results
+
+if __name__ == '__main__':
+    try:
+        jobs = scrape_ai_jobs_for_rag()
+        import json
+        print("Scraped Jobs:")
+        print(json.dumps(jobs, indent=2, default=str))
+    except Exception as e:
+        print(f"An error occurred: {e}")
