@@ -10,12 +10,14 @@ def scrape_ai_jobs_for_rag():
     and filter out postings older than 30 days.
     """
     url = "https://www.indeed.com/jobs?q=ai+engineer&l="
-    headers = {"User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36"}
+    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
+    print(f'here we are')
     response = requests.get(url, headers=headers)
     if response.status_code != 200:
          raise Exception(f"Failed to retrieve jobs, status code: {response.status_code}")
     soup = BeautifulSoup(response.text, "html.parser")
     job_cards = soup.find_all("div", class_="jobsearch-SerpJobCard")
+    prrint(f'the jobs cards are {job_cards}')
     results = []
     for card in job_cards[:10]:
          title_elem = card.find("h2", class_="title")
