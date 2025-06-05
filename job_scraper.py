@@ -29,8 +29,8 @@ def scrape_ai_jobs_for_rag():
              context_kwargs["storage_state"] = storage_file
          context = browser.new_context(**context_kwargs)
          page = context.new_page()
-         page.goto(url, timeout=60000)
-         page.wait_for_load_state("networkidle", timeout=60000)
+         page.goto(url, timeout=90000)
+         page.wait_for_selector("div.opening", timeout=90000)
          content = page.content()
          context.storage_state(path=storage_file)
          browser.close()
