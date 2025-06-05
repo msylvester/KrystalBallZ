@@ -9,20 +9,33 @@ def scrape_ai_jobs_for_rag():
     In production, you could use requests and BeautifulSoup to scrape sites like LinkedIn, Indeed, etc.,
     and filter out postings older than 30 days.
     """
-    # Placeholder implementation, returning one sample job posting.
-    job_data = [
-        {
-          "job_title": "AI Research Engineer",
-          "company": "OpenAI",
-          "location": "San Francisco, CA",
-          "employment_type": "Full-time",
-          "remote": True,
-          "salary_range": "$150k-$200k",
-          "tech_stack": ["Python", "PyTorch", "Docker", "Kubernetes"],
-          "description": "<p>Responsibilities include research on AI models and architectures.</p>",
-          "apply_link": "https://jobs.example.com/ai-research-engineer",
-          "source": "LinkedIn",
-          "posted_date": (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
-        }
-    ]
-    return job_data
+    url = "https://www.indeed.com/jobs?q=ai+engineer&l="
+    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
+    response = requests.get(url, headers=headers)
+    if response.status_code != 200:
+         raise Exception(f"Failed to retrieve jobs, status code: {response.status_code}")
+    soup = BeautifulSoup(response.text, "html.parser")
+    job_cards = soup.find_all("div", class_="jobsearch-SerpJobCard")
+    results = []
+    for card in job_cards[:10]:
+         title_elem = card.find("h2", class_="title")
+         company_elem = card.find("span", class_="company")
+         location_elem = card.find("div", class_="location")
+         title_text = title_elem.get_text(strip=True) if title_elem else None
+         company_text = company_elem.get_text(strip=True) if company_elem else None
+         location_text = location_elem.get_text(strip=True) if location_elem else None
+         job = {
+             "job_title": title_text,
+             "company": company_text,
+             "location": location_text,
+             "employment_type": "N/A",
+             "remote": False,
+             "salary_range": "N/A",
+             "tech_stack": [],
+             "description": "",
+             "apply_link": "",
+             "source": "Indeed",
+             "posted_date": datetime.now().strftime("%Y-%m-%d")
+         }
+         results.append(job)
+    return results
