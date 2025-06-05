@@ -1,3 +1,4 @@
+# Ensure you run "uv install playwright" to install Playwright dependencies.
 import requests
 from playwright.sync_api import sync_playwright
 from bs4 import BeautifulSoup
