@@ -18,11 +18,13 @@ def scrape_ai_jobs_for_rag():
     """
     url = "https://www.greenhouse.io/jobs?q=ai+engineer"
     print("Launching Playwright browser for scraping Greenhouse jobs")
+    import sys
+    headful_mode = "--headful" in sys.argv
     storage_file = "playwright_storage.json"
     import random
     with sync_playwright() as p:
          browser = p.chromium.launch(
-             headless=True,
+             headless=not headful_mode,
              args=[
                  '--disable-blink-features=AutomationControlled',
                  '--disable-web-security'
