@@ -16,8 +16,8 @@ def scrape_ai_jobs_for_rag():
     In production, you could use requests and BeautifulSoup to scrape sites like LinkedIn, Indeed, etc.,
     and filter out postings older than 30 days.
     """
-    url = "https://www.indeed.com/jobs?q=ai+engineering&l="
-    print("Launching Playwright browser for scraping Indeed jobs")
+    url = "https://www.linkedin.com/jobs/search/?keywords=ai+engineering"
+    print("Launching Playwright browser for scraping LinkedIn jobs")
     import sys
     headful_mode = "--headful" in sys.argv
     if headful_mode:
@@ -50,8 +50,7 @@ def scrape_ai_jobs_for_rag():
          # Improved waiting strategy
          page.wait_for_load_state('networkidle', timeout=90000)
          page.wait_for_function('''() => {
-             return document.querySelectorAll('div.opening').length > 0 || 
-                    document.querySelectorAll('div[department="Engineering"]').length > 0
+             return document.querySelectorAll('ul.jobs-search__results-list li').length > 0
          }''', timeout=90000)
          content = page.content()
          # Save debugging information
@@ -61,24 +60,25 @@ def scrape_ai_jobs_for_rag():
          context.storage_state(path=storage_file)
          browser.close()
     soup = BeautifulSoup(content, "html.parser")
-    job_cards = soup.find_all("div", class_="job_seen_beacon")
+    job_cards = soup.select("ul.jobs-search__results-list li")
     print(f'The job cards found: {job_cards}')
     results = []
     for card in job_cards[:10]:
-         link_elem = card.find("a", class_="jcs-JobTitle")
+         link_elem = card.find("a", class_="base-card__full-link")
          if link_elem:
-             title_text = link_elem.get_text(strip=True)
+             title_elem = card.find("h3", class_="base-search-card__title")
+             title_text = title_elem.get_text(strip=True) if title_elem else None
              apply_link = link_elem.get('href', '')
-             if apply_link and not apply_link.startswith("http"):
-                 apply_link = "https://www.indeed.com" + apply_link
          else:
              title_text = None
              apply_link = ""
-         location_elem = card.find("div", class_="companyLocation")
+         company_elem = card.find("h4", class_="base-search-card__subtitle")
+         company_text = company_elem.get_text(strip=True) if company_elem else "LinkedIn"
+         location_elem = card.find("span", class_="job-search-card__location")
          location_text = location_elem.get_text(strip=True) if location_elem else "N/A"
          job = {
              "job_title": title_text,
-             "company": "Indeed",
+             "company": company_text,
              "location": location_text,
              "employment_type": "N/A",
              "remote": False,
@@ -86,7 +86,7 @@ def scrape_ai_jobs_for_rag():
              "tech_stack": [],
              "description": "",
              "apply_link": apply_link,
-             "source": "Indeed",
+             "source": "LinkedIn",
              "posted_date": datetime.now().strftime("%Y-%m-%d")
          }
          results.append(job)
