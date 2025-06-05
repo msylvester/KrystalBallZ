@@ -199,6 +199,31 @@ def main():
         st.success(response)
         logger.info("Response displayed to user")
         
+        if service_used == "AI Job Search Service":
+            import re
+            location = ""
+            if "in " in current_input.lower():
+                location_parts = current_input.lower().split("in ")
+                if len(location_parts) > 1:
+                    location = location_parts[1].strip()
+            if "san francisco" in current_input.lower() or (location and "san francisco" in location.lower()):
+                location = "San Francisco, CA"
+            limit = 5
+            num_match = re.search(r'show (\d+) jobs', current_input.lower())
+            if num_match:
+                limit = int(num_match.group(1))
+            try:
+                raw_data = st.session_state.agent.job_service._fetch_job_data(location, limit)
+                processed_data = st.session_state.agent.job_service._process_job_data(raw_data)
+                jobs = processed_data.get("jobs", [])
+                if jobs:
+                    st.subheader("Job Listings")
+                    st.table(jobs)
+                else:
+                    st.info("No job listings found.")
+            except Exception as e:
+                st.error(f"Failed to fetch job listings: {e}")
+        
         # Clear the last submitted value to prevent re-processing
         st.session_state.last_submitted = ""
 
