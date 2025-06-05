@@ -16,8 +16,8 @@ def scrape_ai_jobs_for_rag():
     In production, you could use requests and BeautifulSoup to scrape sites like LinkedIn, Indeed, etc.,
     and filter out postings older than 30 days.
     """
-    url = "https://www.greenhouse.io/jobs?q=ai+engineer"
-    print("Launching Playwright browser for scraping Greenhouse jobs")
+    url = "https://www.indeed.com/jobs?q=ai+engineering&l="
+    print("Launching Playwright browser for scraping Indeed jobs")
     import sys
     headful_mode = "--headful" in sys.argv
     if headful_mode:
@@ -61,27 +61,24 @@ def scrape_ai_jobs_for_rag():
          context.storage_state(path=storage_file)
          browser.close()
     soup = BeautifulSoup(content, "html.parser")
-    # Try both selector strategies
-    job_cards = soup.find_all("div", class_="opening")
-    if not job_cards:
-        job_cards = soup.find_all('div', {'department': 'Engineering'})
+    job_cards = soup.find_all("div", class_="job_seen_beacon")
     print(f'The job cards found: {job_cards}')
     results = []
     for card in job_cards[:10]:
-         link_elem = card.find("a")
+         link_elem = card.find("a", class_="jcs-JobTitle")
          if link_elem:
              title_text = link_elem.get_text(strip=True)
              apply_link = link_elem.get('href', '')
              if apply_link and not apply_link.startswith("http"):
-                 apply_link = "https://www.greenhouse.io" + apply_link
+                 apply_link = "https://www.indeed.com" + apply_link
          else:
              title_text = None
              apply_link = ""
-         location_elem = card.find("span", class_="location")
+         location_elem = card.find("div", class_="companyLocation")
          location_text = location_elem.get_text(strip=True) if location_elem else "N/A"
          job = {
              "job_title": title_text,
-             "company": "Greenhouse",
+             "company": "Indeed",
              "location": location_text,
              "employment_type": "N/A",
              "remote": False,
@@ -89,7 +86,7 @@ def scrape_ai_jobs_for_rag():
              "tech_stack": [],
              "description": "",
              "apply_link": apply_link,
-             "source": "Greenhouse",
+             "source": "Indeed",
              "posted_date": datetime.now().strftime("%Y-%m-%d")
          }
          results.append(job)
