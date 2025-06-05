@@ -36,13 +36,15 @@ class CountryReportAPI:
         """
         try:
             # Determine the endpoint based on whether a region is specified
+            # Add fields parameter to specify what data we want
+            fields = "name,population,region,subregion,capital,languages"
             if region:
                 region = region.lower()
                 self.logger.info(f"Fetching countries in region: {region}")
-                endpoint = f"{self.base_url}/region/{region}"
+                endpoint = f"{self.base_url}/region/{region}?fields={fields}"
             else:
                 self.logger.info("Fetching all countries")
-                endpoint = f"{self.base_url}/all"
+                endpoint = f"{self.base_url}/all?fields={fields}"
             
             # Make the API request
             self.logger.info(f"Making request to: {endpoint}")
@@ -214,7 +216,7 @@ Languages: {languages}
 
 TRAVEL ADVISORY:
 ---------------
-{country} is a {"popular tourist destination" if tourist_friendly else "less common tourist destination"}.
+{country} is a {"Popular tourist destination" if tourist_friendly else "less common tourist destination"}.
 {"Multiple languages are spoken, which may make it easier for tourists." if "," in languages else ""}
 
 ===========================================
