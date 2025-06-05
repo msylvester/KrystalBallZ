@@ -21,7 +21,8 @@ class Agent:
     def __init__(self):
         self.event_history = []
         self.api_key = os.environ.get("OPENAI_API_KEY", "")
-        self.job_service = AIJobSearchService()
+        jooble_api_key = os.environ.get("JOOBLE_API_KEY", "")
+        self.job_service = AIJobSearchService(api_key=jooble_api_key)
         self.tools = {
             "ai_jobs": self.job_service.get_ai_jobs
         }
