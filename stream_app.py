@@ -5,7 +5,6 @@ import requests
 import json
 import logging
 from datetime import datetime
-from country_report import CountryReportAPI, authorize, process_country_data, format_country_report
 from ai_job_service import AIJobSearchService
 
 # Configure logging
@@ -22,10 +21,8 @@ class Agent:
     def __init__(self):
         self.event_history = []
         self.api_key = os.environ.get("OPENAI_API_KEY", "")
-        self.country_service = CountryReportAPI()
         self.job_service = AIJobSearchService()
         self.tools = {
-            "country_report": self.country_service.get_data,
             "ai_jobs": self.job_service.get_ai_jobs
         }
         self.logger = logging.getLogger("agent_app.Agent")
@@ -40,19 +37,7 @@ class Agent:
             return "Error: OpenAI API key not set"
         
         # Check if this is a tool request
-        if "country" in event.lower() or "nation" in event.lower():
-            self.logger.info("Routing to country report service")
-            
-            # Extract region if provided
-            region = None
-            if "in " in event.lower():
-                region_parts = event.lower().split("in ")
-                if len(region_parts) > 1:
-                    region = region_parts[1].strip()
-                    self.logger.info(f"Extracted region: '{region}'")
-            
-            return self.tools["country_report"](region=region)
-        elif "ai jobs" in event.lower() or "job search" in event.lower():
+        if "ai jobs" in event.lower() or "job search" in event.lower() or "jobs" in event.lower():
             self.logger.info("Routing to AI job search service")
             
             # Extract location if provided
@@ -203,9 +188,6 @@ def main():
         if "AI ENGINEERING JOBS REPORT" in response:
             service_used = "AI Job Search Service"
             logger.info("Response identified as coming from AI Job Search Service")
-        elif "COUNTRY REPORT" in response:
-            service_used = "Country Report Service"
-            logger.info("Response identified as coming from Country Report Service")
         else:
             logger.info("Response identified as coming from GPT-3.5")
         
