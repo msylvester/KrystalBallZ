@@ -15,8 +15,8 @@ def scrape_ai_jobs_for_rag():
     In production, you could use requests and BeautifulSoup to scrape sites like LinkedIn, Indeed, etc.,
     and filter out postings older than 30 days.
     """
-    url = "https://www.indeed.com/jobs?q=ai+engineer&l="
-    print("Launching Playwright browser for scraping Indeed jobs")
+    url = "https://www.greenhouse.io/jobs?q=ai+engineer"
+    print("Launching Playwright browser for scraping Greenhouse jobs")
     storage_file = "playwright_storage.json"
     with sync_playwright() as p:
          browser = p.chromium.launch(headless=True)
@@ -35,27 +35,32 @@ def scrape_ai_jobs_for_rag():
          context.storage_state(path=storage_file)
          browser.close()
     soup = BeautifulSoup(content, "html.parser")
-    job_cards = soup.find_all("div", class_="jobsearch-SerpJobCard")
-    print(f'the jobs cards are {job_cards}')
+    job_cards = soup.find_all("div", class_="opening")
+    print(f'The job cards found: {job_cards}')
     results = []
     for card in job_cards[:10]:
-         title_elem = card.find("h2", class_="title")
-         company_elem = card.find("span", class_="company")
-         location_elem = card.find("div", class_="location")
-         title_text = title_elem.get_text(strip=True) if title_elem else None
-         company_text = company_elem.get_text(strip=True) if company_elem else None
-         location_text = location_elem.get_text(strip=True) if location_elem else None
+         link_elem = card.find("a")
+         if link_elem:
+             title_text = link_elem.get_text(strip=True)
+             apply_link = link_elem.get('href', '')
+             if apply_link and not apply_link.startswith("http"):
+                 apply_link = "https://www.greenhouse.io" + apply_link
+         else:
+             title_text = None
+             apply_link = ""
+         location_elem = card.find("span", class_="location")
+         location_text = location_elem.get_text(strip=True) if location_elem else "N/A"
          job = {
              "job_title": title_text,
-             "company": company_text,
+             "company": "Greenhouse",
              "location": location_text,
              "employment_type": "N/A",
              "remote": False,
              "salary_range": "N/A",
              "tech_stack": [],
              "description": "",
-             "apply_link": "",
-             "source": "Indeed",
+             "apply_link": apply_link,
+             "source": "Greenhouse",
              "posted_date": datetime.now().strftime("%Y-%m-%d")
          }
          results.append(job)
