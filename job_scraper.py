@@ -1,5 +1,6 @@
 # Ensure you run "pip install playwright" and then "playwright install" to install Playwright dependencies.
 import requests
+import random
 try:
     from playwright.sync_api import sync_playwright
 except ModuleNotFoundError:
@@ -18,8 +19,15 @@ def scrape_ai_jobs_for_rag():
     url = "https://www.greenhouse.io/jobs?q=ai+engineer"
     print("Launching Playwright browser for scraping Greenhouse jobs")
     storage_file = "playwright_storage.json"
+    import random
     with sync_playwright() as p:
-         browser = p.chromium.launch(headless=True)
+         browser = p.chromium.launch(
+             headless=True,
+             args=[
+                 '--disable-blink-features=AutomationControlled',
+                 '--disable-web-security'
+             ]
+         )
          context_kwargs = {
              "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36",
              "locale": "en-US"
@@ -30,12 +38,25 @@ def scrape_ai_jobs_for_rag():
          context = browser.new_context(**context_kwargs)
          page = context.new_page()
          page.goto(url, timeout=90000)
-         page.wait_for_selector("div.opening", timeout=90000)
+         # Set random viewport dimensions
+         page.set_viewport_size({
+             "width": 1920 + random.randint(0,100), 
+             "height": 1080 + random.randint(0,100)
+         })
+         # Improved waiting strategy
+         page.wait_for_load_state('networkidle', timeout=90000)
+         page.wait_for_function('''() => {
+             return document.querySelectorAll('div.opening').length > 0 || 
+                    document.querySelectorAll('div[department="Engineering"]').length > 0
+         }''', timeout=90000)
          content = page.content()
          context.storage_state(path=storage_file)
          browser.close()
     soup = BeautifulSoup(content, "html.parser")
+    # Try both selector strategies
     job_cards = soup.find_all("div", class_="opening")
+    if not job_cards:
+        job_cards = soup.find_all('div', {'department': 'Engineering'})
     print(f'The job cards found: {job_cards}')
     results = []
     for card in job_cards[:10]:
