@@ -20,6 +20,8 @@ def scrape_ai_jobs_for_rag():
     print("Launching Playwright browser for scraping Greenhouse jobs")
     import sys
     headful_mode = "--headful" in sys.argv
+    if headful_mode:
+         print("Running in headful mode!")
     storage_file = "playwright_storage.json"
     import random
     with sync_playwright() as p:
