@@ -44,23 +44,22 @@ def scrape_ai_jobs_for_rag():
          page.goto(url, timeout=90000)
          # Set random viewport dimensions
          page.set_viewport_size({
-             "width": 1920 + random.randint(0,100), 
+             "width": 1920 + random.randint(0,100),
              "height": 1080 + random.randint(0,100)
          })
-         # Improved waiting strategy
          page.wait_for_load_state('networkidle', timeout=90000)
-         page.wait_for_function('''() => {
-             return document.querySelectorAll('li').length > 0
-         }''', timeout=90000)
          content = page.content()
          if "Attention Required" in content or "cf-browser-verification" in content:
              if headful_mode:
                  print("Cloudflare challenge detected. Please complete the challenge in the browser, then press Enter to continue...")
                  input("Press Enter after you have completed the challenge...")
-                 page.wait_for_load_state('networkidle', timeout=90000)
+                 page.wait_for_timeout(3000)
+                 page.wait_for_function("document.querySelectorAll('li').length > 0", timeout=90000)
                  content = page.content()
              else:
                  raise Exception("Cloudflare challenge detected - run in headful mode to solve it manually")
+         else:
+             page.wait_for_function("document.querySelectorAll('li').length > 0", timeout=90000)
          # Save debugging information
          page.screenshot(path='debug.png')
          with open('page_dump.html', 'w') as f:
