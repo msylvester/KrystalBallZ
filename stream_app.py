@@ -107,7 +107,7 @@ class StreamlitLogHandler(logging.Handler):
         st.session_state.log_messages.append(log_entry)
 
 def main():
-    st.title("GPT-3.5 Powered Agent App")
+    st.title("AI Jobs Agent (AIJA)")
 
     # Initialize session state variables FIRST - before creating any objects
     if 'show_logs' not in st.session_state:
