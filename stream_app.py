@@ -143,7 +143,7 @@ def main():
     st.sidebar.subheader("Debug Options")
     show_logs = st.sidebar.checkbox("Show Debug Logs", value=st.session_state.show_logs)
     if st.sidebar.button("ingest"):
-         from job_scraper import scrape_ai_jobs_for_rag
+         from job_scraper_linkedin_guest import scrape_ai_jobs_for_rag
          jobs = scrape_ai_jobs_for_rag()
          st.sidebar.info(f"Ingested {len(jobs)} job postings")
          st.sidebar.json(jobs)
