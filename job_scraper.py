@@ -16,8 +16,8 @@ def scrape_ai_jobs_for_rag():
     In production, you could use requests and BeautifulSoup to scrape sites like LinkedIn, Indeed, etc.,
     and filter out postings older than 30 days.
     """
-    url = "https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search?keywords=ai+engineering&location="
-    print("Launching Playwright browser for scraping LinkedIn jobs (guest API)")
+    url = "https://www.indeed.com/jobs?q=ai+engineering"
+    print("Launching Playwright browser for scraping Indeed jobs (ai engineering)")
     import sys
     headful_mode = "--headful" in sys.argv
     if headful_mode:
