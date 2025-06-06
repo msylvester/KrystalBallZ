@@ -228,10 +228,6 @@ def validate_job_data(job: Dict) -> bool:
         if not job.get(field) or job[field].strip() == "":
             return False
     
-    # Check text length (too short = low quality)
-    if len(job.get('description', '')) < 20:  # Lowered threshold since some jobs have minimal descriptions
-        return False
-    
     return True
 
 def create_embeddings_openai(texts: List[str], api_key: str) -> List[List[float]]:
