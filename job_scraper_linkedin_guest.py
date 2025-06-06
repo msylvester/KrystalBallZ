@@ -8,6 +8,8 @@ except ModuleNotFoundError:
     sys.exit("ModuleNotFoundError: No module named 'playwright'. Please install it using 'pip install playwright' and then run 'playwright install'.")
 from bs4 import BeautifulSoup
 from datetime import datetime, timedelta
+import os
+import json
 
 def scrape_ai_jobs_for_rag():
     """
@@ -90,6 +92,16 @@ def scrape_ai_jobs_for_rag():
              "posted_date": datetime.now().strftime("%Y-%m-%d")
          }
          results.append(job)
+    
+    # Save results to file
+    os.makedirs("./data", exist_ok=True)
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"./data/scraped_jobs_{timestamp}.json"
+    
+    with open(filename, 'w', encoding='utf-8') as f:
+        json.dump(results, f, indent=2, default=str, ensure_ascii=False)
+    
+    print(f"Results saved to: {filename}")
     return results
 
 if __name__ == '__main__':
