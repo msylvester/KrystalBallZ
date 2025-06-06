@@ -147,9 +147,18 @@ def main():
          
          jobs = scrape_ai_jobs_for_rag()
          
-         st.sidebar.success(f"Ingested {len(jobs)} job postings")
-         st.sidebar.info("Results saved to ./data directory")
-         st.sidebar.json(jobs)
+         st.sidebar.success(f"Ingested {len(jobs)} vector-ready job postings")
+         st.sidebar.info("Results saved to ./data directory (raw, processed, and vector-ready formats)")
+         
+         # Show sample of vector-ready data
+         if jobs:
+             st.sidebar.subheader("Sample Vector-Ready Job:")
+             sample_job = jobs[0]
+             st.sidebar.json({
+                 "id": sample_job["id"],
+                 "text_preview": sample_job["text"][:200] + "...",
+                 "metadata_keys": list(sample_job["metadata"].keys())
+             })
     if show_logs != st.session_state.show_logs:
         st.session_state.show_logs = show_logs
         if show_logs:

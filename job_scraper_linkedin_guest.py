@@ -10,6 +10,11 @@ from bs4 import BeautifulSoup
 from datetime import datetime, timedelta
 import os
 import json
+from data_processor import (
+    standardize_job_data, 
+    prepare_for_vector_db, 
+    validate_job_data
+)
 
 def scrape_ai_jobs_for_rag(max_jobs=100):
     """
@@ -139,27 +144,69 @@ def scrape_ai_jobs_for_rag(max_jobs=100):
     
     # Remove duplicates based on job title and company
     seen = set()
-    results = []
+    unique_results = []
     for job in all_results:
         job_key = (job['job_title'], job['company'])
         if job_key not in seen:
             seen.add(job_key)
-            results.append(job)
+            unique_results.append(job)
+    
+    print(f"Unique jobs before processing: {len(unique_results)}")
+    
+    # Process and standardize the data
+    processed_results = []
+    vector_ready_results = []
+    
+    for job in unique_results:
+        # Validate job data quality
+        if not validate_job_data(job):
+            print(f"Skipping invalid job: {job.get('job_title', 'Unknown')}")
+            continue
+            
+        # Standardize the data
+        try:
+            standardized_job = standardize_job_data(job)
+            processed_results.append(standardized_job)
+            
+            # Prepare for vector database
+            vector_ready_job = prepare_for_vector_db(standardized_job)
+            vector_ready_results.append(vector_ready_job)
+            
+        except Exception as e:
+            print(f"Error processing job {job.get('job_title', 'Unknown')}: {str(e)}")
+            continue
     
     # Limit to requested number of jobs
-    results = results[:max_jobs]
-    print(f"Final unique job count: {len(results)}")
+    processed_results = processed_results[:max_jobs]
+    vector_ready_results = vector_ready_results[:max_jobs]
     
-    # Save results to file
+    print(f"Final processed job count: {len(processed_results)}")
+    print(f"Vector-ready job count: {len(vector_ready_results)}")
+    
+    # Save results to files
     os.makedirs("./data", exist_ok=True)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    filename = f"./data/scraped_jobs_{timestamp}.json"
     
-    with open(filename, 'w', encoding='utf-8') as f:
-        json.dump(results, f, indent=2, default=str, ensure_ascii=False)
+    # Save raw data
+    raw_filename = f"./data/raw_jobs_{timestamp}.json"
+    with open(raw_filename, 'w', encoding='utf-8') as f:
+        json.dump(unique_results, f, indent=2, default=str, ensure_ascii=False)
     
-    print(f"Results saved to: {filename}")
-    return results
+    # Save processed/standardized data
+    processed_filename = f"./data/processed_jobs_{timestamp}.json"
+    with open(processed_filename, 'w', encoding='utf-8') as f:
+        json.dump(processed_results, f, indent=2, default=str, ensure_ascii=False)
+    
+    # Save vector-ready data
+    vector_filename = f"./data/vector_ready_jobs_{timestamp}.json"
+    with open(vector_filename, 'w', encoding='utf-8') as f:
+        json.dump(vector_ready_results, f, indent=2, default=str, ensure_ascii=False)
+    
+    print(f"Raw data saved to: {raw_filename}")
+    print(f"Processed data saved to: {processed_filename}")
+    print(f"Vector-ready data saved to: {vector_filename}")
+    
+    return vector_ready_results
 
 if __name__ == '__main__':
     try:
