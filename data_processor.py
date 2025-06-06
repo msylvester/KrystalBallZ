@@ -221,7 +221,7 @@ def prepare_for_vector_db(job_data: Dict) -> Dict:
 
 def validate_job_data(job: Dict) -> bool:
     """Validate job data quality"""
-    required_fields = ['title', 'company', 'location']
+    required_fields = ['job_title', 'company', 'location']
     
     # Check required fields
     for field in required_fields:
