@@ -146,11 +146,21 @@ def main():
          from scraper_utils.job_scraper_linkedin_guest import scrape_ai_jobs_for_rag
          
          jobs = scrape_ai_jobs_for_rag()
+         vector_ingest_url = os.environ.get("VECTOR_DB_URL", "http://localhost:8000/ingest")
+         success_count = 0
+         for job in jobs:
+             payload = {
+                 "id": job["id"],
+                 "text_preview": job["text"],
+                 "metadata": job["metadata"]
+             }
+             response = requests.post(vector_ingest_url, json=payload)
+             if response.status_code == 200:
+                 success_count += 1
+         st.sidebar.success(f"Ingested {success_count} vector-ready job postings via API")
+         st.sidebar.info("Job postings processed and ingested via vector DB service")
          
-         st.sidebar.success(f"Ingested {len(jobs)} vector-ready job postings")
-         st.sidebar.info("Results saved to ./data directory (raw, processed, and vector-ready formats)")
-         
-         # Show sample of vector-ready data
+         # Show sample of vector-ready job from scraped data
          if jobs:
              st.sidebar.subheader("Sample Vector-Ready Job:")
              sample_job = jobs[0]
