@@ -96,10 +96,6 @@ This document demonstrates the data transformation process from raw scraped job 
 - Unique IDs for deduplication
 - Ready for vector database insertion
 
-#### Stage 4: Embedded Data (Future)
-- Numerical vector representations added
-- Ready for semantic search
-- Can be inserted into vector databases
 
 ### File Outputs
 - `raw_jobs_*.json` - Original scraped data
