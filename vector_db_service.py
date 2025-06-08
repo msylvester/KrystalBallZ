@@ -29,9 +29,9 @@ async def ingest_job_listing(job: JobListing):
     and stores the vector along with its metadata in a ChromaDB collection.
     """
     try:
-        # Generate embedding for text_preview
-        response = openai.Embedding.create(input=job.text_preview, model="text-embedding-ada-002")
-        embedding = response['data'][0]['embedding']
+        # Generate embedding for text_preview using the new OpenAI API
+        from openai.embeddings_utils import get_embedding
+        embedding = get_embedding(job.text_preview, engine="text-embedding-ada-002")
 
         # Add the job listing to the ChromaDB collection
         job_collection.add(
