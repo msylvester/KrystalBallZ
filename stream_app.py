@@ -5,7 +5,7 @@ import requests
 import json
 import logging
 from datetime import datetime
-from tasks.ai_job_service import AIJobSearchService
+from ai_job_service import AIJobSearchService
 
 # Configure logging
 logging.basicConfig(
