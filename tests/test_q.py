@@ -5,6 +5,9 @@ import time
 import requests
 from openai import AsyncOpenAI
 
+# Add parent directory to path so we can import from scraper_utils
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 aclient = AsyncOpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
 import chromadb
 from scraper_utils.job_scraper_linkedin_guest import scrape_ai_jobs_for_rag
