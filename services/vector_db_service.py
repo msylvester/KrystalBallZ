@@ -75,6 +75,21 @@ def get_collection_count():
         logger.error(f"Error getting collection count: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error getting collection count: {str(e)}")
 
+@app.delete("/clear")
+def clear_collection():
+    """Clear all documents from the job_listings collection"""
+    try:
+        global job_collection
+        # Delete the existing collection
+        chroma_client.delete_collection("job_listings")
+        # Recreate it
+        job_collection = chroma_client.create_collection("job_listings")
+        logger.info("Successfully cleared job_listings collection")
+        return {"status": "success", "message": "Collection cleared successfully"}
+    except Exception as e:
+        logger.error(f"Error clearing collection: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error clearing collection: {str(e)}")
+
 @app.get("/health")
 def health_check():
     """Health check endpoint"""
