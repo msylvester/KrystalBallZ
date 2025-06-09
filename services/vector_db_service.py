@@ -84,3 +84,7 @@ def health_check():
             "openai_configured": openai_client is not None,
             "chromadb_connected": False
         }
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
