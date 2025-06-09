@@ -195,28 +195,44 @@ def create_embedding_text(job: Dict) -> Dict:
         "combined_text": clean_for_embedding(primary_text + metadata_text)
     }
 
+def clean_metadata_for_chromadb(metadata: Dict) -> Dict:
+    """Clean metadata to ensure ChromaDB compatibility"""
+    cleaned_metadata = {}
+    for key, value in metadata.items():
+        if isinstance(value, (str, int, float, bool)) or value is None:
+            cleaned_metadata[key] = value
+        elif isinstance(value, list):
+            # Convert lists to comma-separated strings
+            cleaned_metadata[key] = ", ".join(str(item) for item in value)
+        else:
+            # Convert other types to strings
+            cleaned_metadata[key] = str(value)
+    return cleaned_metadata
+
 def prepare_for_vector_db(job_data: Dict) -> Dict:
     """Prepare job data for vector database insertion"""
     
     embedding_texts = create_embedding_text(job_data)
     
+    raw_metadata = {
+        "title": job_data["title"],
+        "company": job_data["company"],
+        "location": job_data["location"],
+        "tech_stack": job_data["tech_stack"],
+        "experience_level": job_data["experience_level"],
+        "employment_type": job_data["employment_type"],
+        "remote_friendly": job_data["remote_friendly"],
+        "salary_range": job_data["salary_range"],
+        "posted_date": job_data["posted_date"],
+        "source": job_data["source"],
+        "apply_link": job_data["apply_link"],
+        "search_term": job_data["search_term"]
+    }
+    
     return {
         "id": job_data["id"],
         "text": embedding_texts["combined_text"],  # Text to embed
-        "metadata": {
-            "title": job_data["title"],
-            "company": job_data["company"],
-            "location": job_data["location"],
-            "tech_stack": job_data["tech_stack"],
-            "experience_level": job_data["experience_level"],
-            "employment_type": job_data["employment_type"],
-            "remote_friendly": job_data["remote_friendly"],
-            "salary_range": job_data["salary_range"],
-            "posted_date": job_data["posted_date"],
-            "source": job_data["source"],
-            "apply_link": job_data["apply_link"],
-            "search_term": job_data["search_term"]
-        }
+        "metadata": clean_metadata_for_chromadb(raw_metadata)
     }
 
 def validate_job_data(job: Dict) -> bool:
