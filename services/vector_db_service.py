@@ -65,6 +65,16 @@ async def ingest_job_listing(job: JobListing):
         logger.error(f"Error ingesting job listing {job.id}: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.get("/count")
+def get_collection_count():
+    """Get the total number of documents in the job_listings collection"""
+    try:
+        count = job_collection.count()
+        return {"total_documents": count}
+    except Exception as e:
+        logger.error(f"Error getting collection count: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error getting collection count: {str(e)}")
+
 @app.get("/health")
 def health_check():
     """Health check endpoint"""
