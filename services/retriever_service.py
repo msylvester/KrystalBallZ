@@ -30,8 +30,10 @@ class JobRetrieverService:
         
         self.aclient = AsyncOpenAI(api_key=self.openai_api_key) if self.openai_api_key else None
         
-        # Initialize ChromaDB client
-        self.chroma_client = chromadb.Client()
+        # Initialize ChromaDB client with persistent storage
+        # Use the same data directory as the vector_db_service
+        chroma_data_path = os.environ.get("CHROMA_DATA_PATH", "./chroma_data")
+        self.chroma_client = chromadb.PersistentClient(path=chroma_data_path)
         
         # Get or create the job_listings collection
         try:
