@@ -146,7 +146,7 @@ def main():
          from scraper_utils.job_scraper_linkedin_guest import scrape_ai_jobs_for_rag
          
          jobs = scrape_ai_jobs_for_rag()
-         vector_ingest_url = os.environ.get("VECTOR_DB_URL", "http://localhost:8000/ingest")
+         vector_ingest_url = os.environ.get("VECTOR_DB_URL", "http://localhost:8002/ingest")
          success_count = 0
          for job in jobs:
              payload = {
