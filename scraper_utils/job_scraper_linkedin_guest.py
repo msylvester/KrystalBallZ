@@ -10,9 +10,9 @@ from bs4 import BeautifulSoup
 from datetime import datetime, timedelta
 import os
 import json
-from data_processor import (
-    standardize_job_data, 
-    prepare_for_vector_db, 
+from scraper_utils.data_processor import (
+    standardize_job_data,
+    prepare_for_vector_db,
     validate_job_data
 )
 
