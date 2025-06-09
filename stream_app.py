@@ -5,7 +5,6 @@ import requests
 import json
 import logging
 from datetime import datetime
-from services.ai_job_service import AIJobSearchService
 
 # Configure logging
 logging.basicConfig(
@@ -21,51 +20,54 @@ class Agent:
     def __init__(self):
         self.event_history = []
         self.api_key = os.environ.get("OPENAI_API_KEY", "")
-        jooble_api_key = os.environ.get("JOOBLE_API_KEY", "")
-        self.job_service = AIJobSearchService(api_key=jooble_api_key)
+        self.retriever_url = os.environ.get("RETRIEVER_SERVICE_URL", "http://localhost:8001")
         self.tools = {
-            "ai_jobs": self.job_service.get_ai_jobs
+            "retrieve_jobs": self.retrieve_jobs
         }
         self.logger = logging.getLogger("agent_app.Agent")
     
+    def retrieve_jobs(self, query, n_results=5):
+        """Retrieve jobs using the vector retrieval service"""
+        try:
+            self.logger.info(f"Calling retriever service with query='{query}', n_results={n_results}")
+            response = requests.get(
+                f"{self.retriever_url}/retrieve",
+                params={"query": query, "n_results": n_results}
+            )
+            
+            if response.status_code == 200:
+                data = response.json()
+                total_results = data.get("total_results", 0)
+                self.logger.info(f"Retrieved {total_results} jobs from vector service")
+                return f"🔍 VECTOR SEARCH RESULTS: Found {total_results} relevant jobs for '{query}'"
+            else:
+                self.logger.error(f"Retriever service error: {response.status_code}")
+                return f"Error retrieving jobs: {response.status_code} - {response.text}"
+        except Exception as e:
+            self.logger.error(f"Error calling retriever service: {str(e)}")
+            return f"Error retrieving jobs: {str(e)}"
+
     def process_event(self, event):
-        """Process an incoming event using GPT-3.5 and return a response"""
+        """Process an incoming event using vector retrieval or GPT-3.5"""
         self.event_history.append(event)
         self.logger.info(f"Processing event: '{event}'")
         
+        # Check if this is a job search request
+        if any(keyword in event.lower() for keyword in ["jobs", "job search", "find", "search", "looking for"]) and any(job_term in event.lower() for job_term in ["job", "position", "role", "career"]):
+            self.logger.info("Routing to vector retrieval service")
+            
+            # Extract number of results
+            import re
+            num_match = re.search(r'(\d+)\s+jobs?', event.lower())
+            n_results = int(num_match.group(1)) if num_match else 5
+            
+            self.logger.info(f"Calling retriever with query='{event}', n_results={n_results}")
+            return self.tools["retrieve_jobs"](query=event, n_results=n_results)
+        
+        # Fall back to GPT-3.5 for non-job queries
         if not self.api_key:
             self.logger.error("OpenAI API key not set")
             return "Error: OpenAI API key not set"
-        
-        # Check if this is a tool request
-        if "ai jobs" in event.lower() or "job search" in event.lower() or "jobs" in event.lower():
-            self.logger.info("Routing to AI job search service")
-            
-            # Extract location if provided
-            location = ""
-            if "in " in event.lower():
-                location_parts = event.lower().split("in ")
-                if len(location_parts) > 1:
-                    location = location_parts[1].strip()
-                    self.logger.info(f"Extracted location: '{location}'")
-            
-            # Special handling for San Francisco
-            if "san francisco" in event.lower() or (location and "san francisco" in location.lower()):
-                self.logger.info("Detected request for San Francisco jobs")
-                location = "San Francisco, CA"
-            
-            # Default limit is 5, but can be customized
-            limit = 5
-            if "show" in event.lower() and "jobs" in event.lower():
-                # Try to extract a number
-                import re
-                num_match = re.search(r'show (\d+) jobs', event.lower())
-                if num_match:
-                    limit = int(num_match.group(1))
-                    self.logger.info(f"Extracted job limit: {limit}")
-            
-            self.logger.info(f"Calling job service with location='{location}', limit={limit}")
-            return self.tools["ai_jobs"](location=location, limit=limit)
         
         try:
             self.logger.info("Routing to GPT-3.5")
@@ -213,9 +215,9 @@ def main():
         
         # Determine which service was used
         service_used = None
-        if "AI ENGINEERING JOBS REPORT" in response:
-            service_used = "AI Job Search Service"
-            logger.info("Response identified as coming from AI Job Search Service")
+        if "VECTOR SEARCH RESULTS" in response:
+            service_used = "Vector Retrieval Service"
+            logger.info("Response identified as coming from Vector Retrieval Service")
         else:
             logger.info("Response identified as coming from GPT-3.5")
         
@@ -226,28 +228,73 @@ def main():
         st.success(response)
         logger.info("Response displayed to user")
         
-        if service_used == "AI Job Search Service":
+        if service_used == "Vector Retrieval Service":
             import re
-            location = ""
-            if "in " in current_input.lower():
-                location_parts = current_input.lower().split("in ")
-                if len(location_parts) > 1:
-                    location = location_parts[1].strip()
-            if "san francisco" in current_input.lower() or (location and "san francisco" in location.lower()):
-                location = "San Francisco, CA"
-            limit = 5
-            num_match = re.search(r'show (\d+) jobs', current_input.lower())
-            if num_match:
-                limit = int(num_match.group(1))
+            num_match = re.search(r'(\d+)\s+jobs?', current_input.lower())
+            n_results = int(num_match.group(1)) if num_match else 5
+            
             try:
-                raw_data = st.session_state.agent.job_service._fetch_job_data(location, limit)
-                processed_data = st.session_state.agent.job_service._process_job_data(raw_data)
-                jobs = processed_data.get("jobs", [])
-                if jobs:
-                    st.subheader("Job Listings")
-                    st.table(jobs)
+                retriever_url = st.session_state.agent.retriever_url
+                retrieval_response = requests.get(
+                    f"{retriever_url}/retrieve",
+                    params={"query": current_input, "n_results": n_results}
+                )
+                
+                if retrieval_response.status_code == 200:
+                    retrieval_data = retrieval_response.json()
+                    results = retrieval_data.get("results", [])
+                    
+                    if results:
+                        st.subheader("Retrieved Job Listings")
+                        
+                        # Summary table
+                        summary_data = []
+                        for i, result in enumerate(results):
+                            metadata = result.get("metadata", {})
+                            summary_data.append({
+                                "Rank": i + 1,
+                                "Title": metadata.get("title", "N/A"),
+                                "Company": metadata.get("company", "N/A"),
+                                "Location": metadata.get("location", "N/A"),
+                                "Similarity": f"{result.get('similarity_score', 0):.3f}"
+                            })
+                        
+                        st.table(summary_data)
+                        
+                        # Detailed results
+                        st.subheader("Detailed Results")
+                        for i, result in enumerate(results):
+                            metadata = result.get("metadata", {})
+                            with st.expander(f"Job {i+1}: {metadata.get('title', 'Unknown')} at {metadata.get('company', 'Unknown')}"):
+                                col1, col2 = st.columns(2)
+                                
+                                with col1:
+                                    st.write("**Job Details:**")
+                                    st.write(f"**Title:** {metadata.get('title', 'N/A')}")
+                                    st.write(f"**Company:** {metadata.get('company', 'N/A')}")
+                                    st.write(f"**Location:** {metadata.get('location', 'N/A')}")
+                                    st.write(f"**Experience Level:** {metadata.get('experience_level', 'N/A')}")
+                                    st.write(f"**Employment Type:** {metadata.get('employment_type', 'N/A')}")
+                                
+                                with col2:
+                                    st.write("**Additional Info:**")
+                                    st.write(f"**Remote Friendly:** {metadata.get('remote_friendly', 'N/A')}")
+                                    st.write(f"**Salary Range:** {metadata.get('salary_range', 'N/A')}")
+                                    st.write(f"**Tech Stack:** {metadata.get('tech_stack', 'N/A')}")
+                                    st.write(f"**Similarity Score:** {result.get('similarity_score', 0):.3f}")
+                                
+                                if metadata.get('apply_link'):
+                                    st.write(f"**Apply Link:** {metadata.get('apply_link')}")
+                                
+                                # Show document preview
+                                document = result.get("document", "")
+                                if document:
+                                    st.write("**Job Description Preview:**")
+                                    st.text_area("", document[:500] + "..." if len(document) > 500 else document, height=100, key=f"doc_{i}")
+                    else:
+                        st.info("No job listings found for your query.")
                 else:
-                    st.info("No job listings found.")
+                    st.error(f"Failed to retrieve job listings: {retrieval_response.status_code}")
             except Exception as e:
                 st.error(f"Failed to fetch job listings: {e}")
         
