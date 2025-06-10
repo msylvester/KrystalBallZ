@@ -6,6 +6,7 @@ import asyncio
 import chromadb
 from openai import AsyncOpenAI
 import logging
+from neo4j import GraphDatabase
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -42,6 +43,18 @@ class JobRetrieverService:
         except Exception as e:
             logger.warning(f"Collection 'job_listings' not found: {e}")
             self.job_collection = None
+        
+        # Initialize Neo4j client
+        neo4j_uri = os.environ.get("NEO4J_URI", "bolt://localhost:7687")
+        neo4j_user = os.environ.get("NEO4J_USER", "neo4j")
+        neo4j_password = os.environ.get("NEO4J_PASSWORD", "jobsearch")
+        
+        try:
+            self.neo4j_driver = GraphDatabase.driver(neo4j_uri, auth=(neo4j_user, neo4j_password))
+            logger.info("Connected to Neo4j for retrieval service")
+        except Exception as e:
+            logger.warning(f"Neo4j connection failed: {e}")
+            self.neo4j_driver = None
     
     async def create_query_embedding(self, query_text: str) -> List[float]:
         """Create embedding for the user query using OpenAI API"""
@@ -74,6 +87,41 @@ class JobRetrieverService:
             logger.error(f"Error querying ChromaDB: {str(e)}")
             raise HTTPException(status_code=500, detail=f"Error querying vector database: {str(e)}")
     
+    def expand_results_with_graph(self, vector_results: List[Dict]) -> List[Dict]:
+        """Expand vector results using graph relationships"""
+        if not self.neo4j_driver:
+            return []
+        
+        expanded_jobs = []
+        
+        try:
+            with self.neo4j_driver.session() as session:
+                for result in vector_results:
+                    job_id = result.get('id')
+                    if not job_id:
+                        continue
+                    
+                    # Find similar jobs through company and skills
+                    similar_jobs = session.run("""
+                        MATCH (j1:Job {id: $job_id})-[:WORKS_AT]->(c:Company)<-[:WORKS_AT]-(j2:Job)
+                        WHERE j1 <> j2
+                        RETURN j2.id as similar_job_id, 'same_company' as reason
+                        LIMIT 3
+                        
+                        UNION
+                        
+                        MATCH (j1:Job {id: $job_id})-[:REQUIRES]->(s:Skill)<-[:REQUIRES]-(j2:Job)
+                        WHERE j1 <> j2
+                        RETURN j2.id as similar_job_id, 'shared_skills' as reason
+                        LIMIT 3
+                    """, job_id=job_id).data()
+                    
+                    expanded_jobs.extend(similar_jobs)
+        except Exception as e:
+            logger.error(f"Error expanding results with graph: {e}")
+        
+        return expanded_jobs
+
     def format_results(self, raw_results: Dict[str, Any], query: str) -> QueryResponse:
         """Format the raw ChromaDB results into a structured response"""
         formatted_results = []
@@ -109,8 +157,19 @@ class JobRetrieverService:
         # Query the vector database
         raw_results = self.query_vector_database(query_embedding, n_results)
         
-        # Format and return results
+        # Format results
         formatted_response = self.format_results(raw_results, query)
+        
+        # Expand with graph relationships
+        if formatted_response.results:
+            graph_expansions = self.expand_results_with_graph(formatted_response.results)
+            
+            # Add graph context to response
+            if hasattr(formatted_response, '__dict__'):
+                formatted_response.__dict__['graph_context'] = {
+                    "related_jobs_found": len(graph_expansions),
+                    "expansion_reasons": [exp.get('reason', '') for exp in graph_expansions]
+                }
         
         logger.info(f"Retrieved {formatted_response.total_results} results for query")
         return formatted_response

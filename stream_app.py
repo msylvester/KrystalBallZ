@@ -261,6 +261,24 @@ def main():
                         
                         st.table(summary_data)
                         
+                        # Graph context display
+                        if retrieval_data.get("graph_context"):
+                            st.subheader("🕸️ Related Opportunities")
+                            graph_ctx = retrieval_data["graph_context"]
+                            
+                            if graph_ctx["related_jobs_found"] > 0:
+                                st.info(f"Found {graph_ctx['related_jobs_found']} related jobs through company connections and shared skills")
+                                
+                                with st.expander("View Related Jobs"):
+                                    st.write("Jobs at same companies or requiring similar skills")
+                                    for reason in set(graph_ctx["expansion_reasons"]):
+                                        if reason == "same_company":
+                                            st.write("• Jobs at the same companies")
+                                        elif reason == "shared_skills":
+                                            st.write("• Jobs requiring similar skills")
+                            else:
+                                st.info("No related jobs found in company/skill network")
+                        
                         # Detailed results
                         st.subheader("Detailed Results")
                         for i, result in enumerate(results):
