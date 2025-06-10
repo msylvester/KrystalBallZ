@@ -1,7 +1,9 @@
 fastapi
 dotenv
 uvicorn
+neo4j
 streamlit
+chromadb
 requests>=2.31.0
 pytest>=7.4.0
 sentence-transformers>=2.2.0
