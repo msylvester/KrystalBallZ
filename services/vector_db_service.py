@@ -75,6 +75,7 @@ def create_job_graph_node(job_data: dict):
                 MERGE (c:Company {name: $company})
                 MERGE (j)-[:WORKS_AT]->(c)
                 
+                WITH j
                 UNWIND $skills as skill_name
                 MERGE (s:Skill {name: skill_name})
                 MERGE (j)-[:REQUIRES]->(s)
