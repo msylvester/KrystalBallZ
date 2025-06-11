@@ -17,7 +17,7 @@ JOB_GRAPH_SCHEMA = GraphSchema(
         "Skill": ["name"]
     },
     relationships=[
-        "(:Job)-[:WORKS_AT]->(:Company)",
+        "(:Company)-[:HAS_JOB]->(:Job)",
         "(:Job)-[:REQUIRES]->(:Skill)",
         "(:Company)-[:SIMILAR_TO]->(:Company)"
     ],
