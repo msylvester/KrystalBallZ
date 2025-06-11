@@ -316,24 +316,23 @@ class JobRetrieverService:
         # Format results
         formatted_response = self.format_results(raw_results, query)
         
-        # Enhanced graph expansion
-        if formatted_response.results:
-            # Get enhanced graph context
-            enhanced_context = self.get_enhanced_graph_context(formatted_response.results, query)
-            
-            # Get expanded related jobs
+        # Add graph context for enhanced results
+        if formatted_response.results and self.neo4j_driver:
+            # Get basic graph expansion (related jobs by company)
             graph_expansions = self.expand_results_with_graph(formatted_response.results)
             
-            # Add comprehensive graph context to response
-            if hasattr(formatted_response, '__dict__'):
-                formatted_response.__dict__['enhanced_graph_context'] = enhanced_context
-                formatted_response.__dict__['graph_expansions'] = graph_expansions
-                
-                # Legacy compatibility
-                formatted_response.__dict__['graph_context'] = {
-                    "related_jobs_found": graph_expansions.get("expansion_summary", {}).get("total_related", 0),
-                    "expansion_reasons": [exp.get('reason', '') for exp in graph_expansions.get("related_jobs", [])]
-                }
+            # Add graph context to response
+            formatted_response.__dict__['graph_context'] = {
+                "related_jobs": graph_expansions.get("related_jobs", []),
+                "total_related": graph_expansions.get("total_related", 0),
+                "graph_available": True
+            }
+        else:
+            formatted_response.__dict__['graph_context'] = {
+                "related_jobs": [],
+                "total_related": 0,
+                "graph_available": False
+            }
         
         logger.info(f"Retrieved {formatted_response.total_results} results for query")
         return formatted_response
