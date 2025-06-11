@@ -246,17 +246,26 @@ class JobRetrieverService:
 
     def expand_results_with_graph(self, vector_results: List[Dict]) -> Dict:
         """Bare minimum graph expansion - find related jobs by company"""
+        logger.info(f"🕸️ GRAPH EXPANSION: Starting graph expansion for {len(vector_results)} vector results")
+        
         if not self.neo4j_driver:
-            return {"related_jobs": [], "total_related": 0}
+            logger.warning("🕸️ GRAPH EXPANSION: Neo4j driver not available - skipping graph expansion")
+            return {"related_jobs": [], "total_related": 0, "expansion_reasons": []}
         
         related_jobs = []
+        expansion_reasons = []
         
         try:
             with self.neo4j_driver.session() as session:
-                for result in vector_results:
+                logger.info("🕸️ GRAPH EXPANSION: Connected to Neo4j session")
+                
+                for i, result in enumerate(vector_results):
                     job_id = result.get('id')
                     if not job_id:
+                        logger.warning(f"🕸️ GRAPH EXPANSION: Result {i} has no job_id, skipping")
                         continue
+                    
+                    logger.info(f"🕸️ GRAPH EXPANSION: Processing job_id: {job_id}")
                     
                     # Find other jobs at the same company
                     same_company_jobs = session.run("""
@@ -267,15 +276,24 @@ class JobRetrieverService:
                         LIMIT 2
                     """, job_id=job_id).data()
                     
-                    related_jobs.extend(same_company_jobs)
+                    if same_company_jobs:
+                        logger.info(f"🕸️ GRAPH EXPANSION: Found {len(same_company_jobs)} related jobs for {job_id}")
+                        related_jobs.extend(same_company_jobs)
+                        expansion_reasons.append("same_company")
+                        for job in same_company_jobs:
+                            logger.info(f"🕸️ GRAPH EXPANSION: Related job - {job['title']} at {job['company']}")
+                    else:
+                        logger.info(f"🕸️ GRAPH EXPANSION: No related jobs found for {job_id}")
         
         except Exception as e:
-            logger.error(f"Error expanding results with graph: {e}")
-            return {"related_jobs": [], "total_related": 0, "error": str(e)}
+            logger.error(f"🕸️ GRAPH EXPANSION: Error expanding results with graph: {e}")
+            return {"related_jobs": [], "total_related": 0, "expansion_reasons": [], "error": str(e)}
         
+        logger.info(f"🕸️ GRAPH EXPANSION: Completed - found {len(related_jobs)} total related jobs")
         return {
             "related_jobs": related_jobs,
-            "total_related": len(related_jobs)
+            "total_related": len(related_jobs),
+            "expansion_reasons": expansion_reasons
         }
 
     def format_results(self, raw_results: Dict[str, Any], query: str) -> QueryResponse:
@@ -317,20 +335,36 @@ class JobRetrieverService:
         formatted_response = self.format_results(raw_results, query)
         
         # Add graph context for enhanced results
+        logger.info(f"🕸️ GRAPH CONTEXT: Checking if graph expansion should be performed")
+        logger.info(f"🕸️ GRAPH CONTEXT: formatted_response.results count: {len(formatted_response.results)}")
+        logger.info(f"🕸️ GRAPH CONTEXT: neo4j_driver available: {self.neo4j_driver is not None}")
+        
         if formatted_response.results and self.neo4j_driver:
+            logger.info("🕸️ GRAPH CONTEXT: Conditions met - performing graph expansion")
             # Get basic graph expansion (related jobs by company)
             graph_expansions = self.expand_results_with_graph(formatted_response.results)
             
             # Add graph context to response
             formatted_response.__dict__['graph_context'] = {
                 "related_jobs": graph_expansions.get("related_jobs", []),
+                "related_jobs_found": graph_expansions.get("total_related", 0),  # UI expects this key
                 "total_related": graph_expansions.get("total_related", 0),
+                "expansion_reasons": graph_expansions.get("expansion_reasons", []),
                 "graph_available": True
             }
+            logger.info(f"🕸️ GRAPH CONTEXT: Added graph context with {graph_expansions.get('total_related', 0)} related jobs")
         else:
+            logger.info("🕸️ GRAPH CONTEXT: Conditions not met - skipping graph expansion")
+            if not formatted_response.results:
+                logger.info("🕸️ GRAPH CONTEXT: No vector results to expand")
+            if not self.neo4j_driver:
+                logger.info("🕸️ GRAPH CONTEXT: Neo4j driver not available")
+            
             formatted_response.__dict__['graph_context'] = {
                 "related_jobs": [],
+                "related_jobs_found": 0,  # UI expects this key
                 "total_related": 0,
+                "expansion_reasons": [],
                 "graph_available": False
             }
         
