@@ -34,6 +34,7 @@ class JobRetrieverService:
         # Initialize ChromaDB client with persistent storage
         # Use the same data directory as the vector_db_service
         chroma_data_path = os.environ.get("CHROMA_DATA_PATH", "./chroma_data")
+        logger.info(f"Retriever Service - ChromaDB path: {os.path.abspath(chroma_data_path)}")
         self.chroma_client = chromadb.PersistentClient(path=chroma_data_path)
         
         # Get or create the job_listings collection

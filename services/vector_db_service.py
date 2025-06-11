@@ -26,6 +26,7 @@ openai_client = OpenAI(api_key=openai_api_key) if openai_api_key else None
 # Initialize ChromaDB client with persistent storage
 # Use the same data directory as the retriever service
 chroma_data_path = os.environ.get("CHROMA_DATA_PATH", "./chroma_data")
+logger.info(f"Vector DB Service - ChromaDB path: {os.path.abspath(chroma_data_path)}")
 chroma_client = chromadb.PersistentClient(path=chroma_data_path)
 
 try:
