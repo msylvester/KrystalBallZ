@@ -46,9 +46,20 @@ try:
     
     # Initialize graph schema
     with neo4j_driver.session() as session:
-        for query in JOB_GRAPH_SCHEMA.indexes + JOB_GRAPH_SCHEMA.constraints:
+        # First, try to drop existing indexes that might conflict with constraints
+        try:
+            session.run("DROP INDEX ON :Job(id) IF EXISTS")
+            session.run("DROP INDEX ON :Company(name) IF EXISTS") 
+            session.run("DROP INDEX ON :Skill(name) IF EXISTS")
+            logger.info("Dropped existing indexes to avoid constraint conflicts")
+        except Exception as e:
+            logger.warning(f"Could not drop existing indexes: {e}")
+        
+        # Now create constraints and indexes
+        for query in JOB_GRAPH_SCHEMA.constraints + JOB_GRAPH_SCHEMA.indexes:
             try:
                 session.run(query)
+                logger.info(f"Successfully executed schema query: {query[:50]}...")
             except Exception as e:
                 logger.warning(f"Schema query failed (may already exist): {e}")
     logger.info("Graph schema initialized")
