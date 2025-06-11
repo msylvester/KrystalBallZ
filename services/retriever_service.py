@@ -103,7 +103,8 @@ class JobRetrieverService:
                     
                     # Find similar jobs through company and skills
                     similar_jobs = session.run("""
-                        MATCH (j1:Job {id: $job_id})-[:WORKS_AT]->(c:Company)<-[:WORKS_AT]-(j2:Job)
+                        MATCH (c:Company)-[:HAS_JOB]->(j1:Job {id: $job_id})
+                        MATCH (c)-[:HAS_JOB]->(j2:Job)
                         WHERE j1 <> j2
                         RETURN j2.id as similar_job_id, 'same_company' as reason
                         LIMIT 3

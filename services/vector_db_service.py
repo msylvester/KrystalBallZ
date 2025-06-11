@@ -70,11 +70,11 @@ def create_job_graph_node(job_data: dict):
             
             session.run("""
                 MERGE (j:Job {id: $id})
-                SET j.title = $title, j.company = $company, j.location = $location
-                
+                SET j.title = $title, j.location = $location
+            
                 MERGE (c:Company {name: $company})
-                MERGE (j)-[:WORKS_AT]->(c)
-                
+                MERGE (c)-[:HAS_JOB]->(j)
+            
                 WITH j
                 UNWIND $skills as skill_name
                 MERGE (s:Skill {name: skill_name})
