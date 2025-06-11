@@ -64,3 +64,25 @@ Check that all services are running:
 3. Use the "ingest" button to scrape and load job data into the vector database
 4. Submit job search queries to get AI-powered semantic search results
 5. View detailed job listings with similarity scores and metadata
+
+## 🔄 Syncing ChromaDB Between Services
+
+If the retriever and ingestor services show different document counts, follow these steps to synchronize them:
+
+### Check Current Status
+```bash
+# Check Vector DB Service (Ingestor) count
+curl http://localhost:8002/count
+
+# Check Retriever Service count  
+curl http://localhost:8001/collection/info
+```
+
+### Sync Services
+1. **Stop both services** (Ctrl+C in their terminals)
+2. **Delete ChromaDB data**: `rm -rf ./chroma_data`
+3. **Start Vector DB Service first**: `python services/vector_db_service.py`
+4. **Start Retriever Service second**: `python services/retriever_service.py`
+5. **Verify sync** using the curl commands above - both should show `"total_documents": 0`
+
+Both services should now use the same ChromaDB collection and show identical document counts.
