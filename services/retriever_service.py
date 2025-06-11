@@ -42,7 +42,13 @@ class JobRetrieverService:
             logger.info("Connected to existing 'job_listings' collection")
         except Exception as e:
             logger.warning(f"Collection 'job_listings' not found: {e}")
-            self.job_collection = None
+            try:
+                # Try to create the collection if it doesn't exist
+                self.job_collection = self.chroma_client.create_collection("job_listings")
+                logger.info("Created new 'job_listings' collection")
+            except Exception as create_error:
+                logger.error(f"Failed to create collection: {create_error}")
+                self.job_collection = None
         
         # Initialize Neo4j client
         neo4j_uri = os.environ.get("NEO4J_URI", "bolt://localhost:7687")
@@ -74,15 +80,22 @@ class JobRetrieverService:
     def query_vector_database(self, embedding: List[float], n_results: int = 5) -> Dict[str, Any]:
         """Query the ChromaDB vector database with the embedding"""
         if not self.job_collection:
-            raise HTTPException(status_code=500, detail="Job collection not available")
+            raise HTTPException(status_code=500, detail="Job collection not available. Please ingest some job data first.")
         
         try:
+            # Check if collection has any data
+            count = self.job_collection.count()
+            if count == 0:
+                raise HTTPException(status_code=404, detail="No job data found in collection. Please ingest some job data first.")
+            
             results = self.job_collection.query(
                 query_embeddings=[embedding],
                 n_results=n_results,
                 include=["documents", "metadatas", "distances"]
             )
             return results
+        except HTTPException:
+            raise
         except Exception as e:
             logger.error(f"Error querying ChromaDB: {str(e)}")
             raise HTTPException(status_code=500, detail=f"Error querying vector database: {str(e)}")
