@@ -32,7 +32,7 @@ class JobRetrieverService:
         
         # Initialize ChromaDB client with persistent storage
         # Use the same data directory as the vector_db_service
-        chroma_data_path = os.environ.get("CHROMA_DATA_PATH", "./chroma_data")
+        chroma_data_path = os.environ.get("CHROMA_DATA_PATH", "../chroma_data")
         self.chroma_client = chromadb.PersistentClient(path=chroma_data_path)
         
         # Get or create the job_listings collection
@@ -177,4 +177,5 @@ def collection_info():
 
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run(app, host="0.0.0.0", port=8001)
