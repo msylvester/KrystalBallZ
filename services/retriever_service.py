@@ -61,7 +61,33 @@ class JobRetrieverService:
         except Exception as e:
             logger.warning(f"Neo4j connection failed: {e}")
             self.neo4j_driver = None
-    
+    @app.get("/debug/chroma")
+    def debug_chroma_connection():
+        """Debug ChromaDB connection details"""
+        try:
+            # Check the actual path being used
+            chroma_data_path = os.environ.get("CHROMA_DATA_PATH", "./chroma_data")
+
+            # List all collections
+            collections = retriever_service.chroma_client.list_collections()
+            collection_names = [col.name for col in collections]
+
+            # Try to get collection info
+            collection_info = None
+            if retriever_service.job_collection:
+                collection_info = {
+                    "name": retriever_service.job_collection.name,
+                    "count": retriever_service.job_collection.count()
+                }
+
+            return {
+                "chroma_data_path": chroma_data_path,
+                "collections_found": collection_names,
+                "job_collection_status": collection_info,
+                "client_type": str(type(retriever_service.chroma_client))
+            }
+        except Exception as e:
+            return {"error": str(e)}
     async def create_query_embedding(self, query_text: str) -> List[float]:
         """Create embedding for the user query using OpenAI API"""
         if not self.aclient:
