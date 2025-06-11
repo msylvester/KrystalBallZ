@@ -87,12 +87,138 @@ class JobRetrieverService:
             logger.error(f"Error querying ChromaDB: {str(e)}")
             raise HTTPException(status_code=500, detail=f"Error querying vector database: {str(e)}")
     
-    def expand_results_with_graph(self, vector_results: List[Dict]) -> List[Dict]:
-        """Expand vector results using graph relationships"""
+    def get_enhanced_graph_context(self, vector_results: List[Dict], query: str) -> Dict:
+        """Get comprehensive graph context for RAG"""
         if not self.neo4j_driver:
-            return []
+            logger.warning("Neo4j driver not available for graph context")
+            return {}
         
-        expanded_jobs = []
+        context = {
+            "company_insights": [],
+            "skill_analysis": [],
+            "market_trends": [],
+            "career_paths": [],
+            "location_insights": [],
+            "query_analysis": {
+                "has_location_intent": False,
+                "has_career_intent": False,
+                "has_skill_intent": False,
+                "detected_keywords": []
+            }
+        }
+        
+        # Analyze query intent
+        query_lower = query.lower()
+        location_keywords = ["location", "remote", "san francisco", "new york", "seattle", "boston", "austin", "where"]
+        career_keywords = ["senior", "junior", "career", "progression", "advancement", "level", "experience"]
+        skill_keywords = ["python", "javascript", "machine learning", "ai", "skills", "technology", "programming"]
+        
+        context["query_analysis"]["has_location_intent"] = any(keyword in query_lower for keyword in location_keywords)
+        context["query_analysis"]["has_career_intent"] = any(keyword in query_lower for keyword in career_keywords)
+        context["query_analysis"]["has_skill_intent"] = any(keyword in query_lower for keyword in skill_keywords)
+        context["query_analysis"]["detected_keywords"] = [kw for kw in location_keywords + career_keywords + skill_keywords if kw in query_lower]
+        
+        # Extract entities from vector results
+        companies = list(set([r.get('metadata', {}).get('company') for r in vector_results if r.get('metadata', {}).get('company')]))
+        job_ids = [r.get('id') for r in vector_results if r.get('id')]
+        
+        try:
+            with self.neo4j_driver.session() as session:
+                # 1. Company hiring patterns
+                if companies:
+                    logger.info(f"Analyzing {len(companies)} companies for hiring patterns")
+                    company_data = session.run("""
+                        MATCH (c:Company)-[:HAS_JOB]->(j:Job)
+                        WHERE c.name IN $companies
+                        WITH c, count(j) as job_count, collect(j.location) as locations
+                        RETURN c.name as company, 
+                               job_count,
+                               [loc IN locations WHERE loc IS NOT NULL AND loc <> ''] as unique_locations,
+                               size([loc IN locations WHERE loc CONTAINS 'Remote' OR loc CONTAINS 'remote']) as remote_count
+                        ORDER BY job_count DESC
+                    """, companies=companies).data()
+                    context["company_insights"] = company_data
+                    logger.info(f"Found insights for {len(company_data)} companies")
+                
+                # 2. Skill demand analysis
+                skill_trends = session.run("""
+                    MATCH (s:Skill)<-[:REQUIRES]-(j:Job)
+                    WITH s, count(j) as demand
+                    WHERE demand > 0
+                    RETURN s.name as skill, demand
+                    ORDER BY demand DESC LIMIT 10
+                """).data()
+                context["skill_analysis"] = skill_trends
+                logger.info(f"Analyzed {len(skill_trends)} skills for demand trends")
+                
+                # 3. Location-based insights (if location intent detected)
+                if context["query_analysis"]["has_location_intent"]:
+                    logger.info("Location intent detected, gathering location insights")
+                    location_data = session.run("""
+                        MATCH (j:Job)
+                        WHERE j.location IS NOT NULL AND j.location <> ''
+                        WITH j.location as location, count(j) as job_count
+                        WHERE job_count > 0
+                        RETURN location, job_count
+                        ORDER BY job_count DESC LIMIT 10
+                    """).data()
+                    context["location_insights"] = location_data
+                    logger.info(f"Found insights for {len(location_data)} locations")
+                
+                # 4. Career progression paths (if career intent detected)
+                if context["query_analysis"]["has_career_intent"]:
+                    logger.info("Career intent detected, analyzing progression paths")
+                    career_data = session.run("""
+                        MATCH (j1:Job)-[:REQUIRES]->(s:Skill)<-[:REQUIRES]-(j2:Job)
+                        WHERE (j1.title CONTAINS 'Junior' OR j1.title CONTAINS 'Entry') 
+                          AND (j2.title CONTAINS 'Senior' OR j2.title CONTAINS 'Lead')
+                        WITH s, count(*) as connection_strength
+                        WHERE connection_strength > 0
+                        RETURN s.name as skill, connection_strength
+                        ORDER BY connection_strength DESC LIMIT 5
+                    """).data()
+                    context["career_paths"] = career_data
+                    logger.info(f"Found {len(career_data)} career progression skills")
+                
+                # 5. Market trends - overall job distribution
+                market_data = session.run("""
+                    MATCH (c:Company)-[:HAS_JOB]->(j:Job)
+                    WITH c, count(j) as job_count
+                    WHERE job_count >= 2
+                    RETURN count(c) as active_companies, 
+                           avg(job_count) as avg_jobs_per_company,
+                           max(job_count) as max_jobs_single_company
+                """).single()
+                
+                if market_data:
+                    context["market_trends"] = {
+                        "active_companies": market_data["active_companies"],
+                        "avg_jobs_per_company": round(market_data["avg_jobs_per_company"], 1),
+                        "max_jobs_single_company": market_data["max_jobs_single_company"]
+                    }
+                    logger.info("Gathered market trend data")
+        
+        except Exception as e:
+            logger.error(f"Error gathering graph context: {e}")
+            context["error"] = str(e)
+        
+        return context
+
+    def expand_results_with_graph(self, vector_results: List[Dict]) -> Dict:
+        """Enhanced graph expansion with detailed context"""
+        if not self.neo4j_driver:
+            return {"insights": [], "related_jobs": []}
+        
+        expanded_context = {
+            "related_jobs": [],
+            "company_connections": [],
+            "skill_connections": [],
+            "expansion_summary": {
+                "total_related": 0,
+                "same_company": 0,
+                "shared_skills": 0
+            }
+        }
         
         try:
             with self.neo4j_driver.session() as session:
@@ -101,27 +227,40 @@ class JobRetrieverService:
                     if not job_id:
                         continue
                     
-                    # Find similar jobs through company and skills
-                    similar_jobs = session.run("""
+                    # Find related jobs through company and skills
+                    related_jobs = session.run("""
+                        // Same company jobs
                         MATCH (c:Company)-[:HAS_JOB]->(j1:Job {id: $job_id})
                         MATCH (c)-[:HAS_JOB]->(j2:Job)
                         WHERE j1 <> j2
-                        RETURN j2.id as similar_job_id, 'same_company' as reason
+                        RETURN j2.id as related_job_id, j2.title as job_title, 
+                               c.name as company, 'same_company' as reason
                         LIMIT 3
                         
                         UNION
                         
+                        // Shared skills jobs
                         MATCH (j1:Job {id: $job_id})-[:REQUIRES]->(s:Skill)<-[:REQUIRES]-(j2:Job)
                         WHERE j1 <> j2
-                        RETURN j2.id as similar_job_id, 'shared_skills' as reason
+                        RETURN j2.id as related_job_id, j2.title as job_title,
+                               s.name as shared_skill, 'shared_skills' as reason
                         LIMIT 3
                     """, job_id=job_id).data()
                     
-                    expanded_jobs.extend(similar_jobs)
+                    for related in related_jobs:
+                        expanded_context["related_jobs"].append(related)
+                        if related["reason"] == "same_company":
+                            expanded_context["expansion_summary"]["same_company"] += 1
+                        elif related["reason"] == "shared_skills":
+                            expanded_context["expansion_summary"]["shared_skills"] += 1
+                    
+                    expanded_context["expansion_summary"]["total_related"] = len(expanded_context["related_jobs"])
+        
         except Exception as e:
             logger.error(f"Error expanding results with graph: {e}")
+            expanded_context["error"] = str(e)
         
-        return expanded_jobs
+        return expanded_context
 
     def format_results(self, raw_results: Dict[str, Any], query: str) -> QueryResponse:
         """Format the raw ChromaDB results into a structured response"""
@@ -161,15 +300,23 @@ class JobRetrieverService:
         # Format results
         formatted_response = self.format_results(raw_results, query)
         
-        # Expand with graph relationships
+        # Enhanced graph expansion
         if formatted_response.results:
+            # Get enhanced graph context
+            enhanced_context = self.get_enhanced_graph_context(formatted_response.results, query)
+            
+            # Get expanded related jobs
             graph_expansions = self.expand_results_with_graph(formatted_response.results)
             
-            # Add graph context to response
+            # Add comprehensive graph context to response
             if hasattr(formatted_response, '__dict__'):
+                formatted_response.__dict__['enhanced_graph_context'] = enhanced_context
+                formatted_response.__dict__['graph_expansions'] = graph_expansions
+                
+                # Legacy compatibility
                 formatted_response.__dict__['graph_context'] = {
-                    "related_jobs_found": len(graph_expansions),
-                    "expansion_reasons": [exp.get('reason', '') for exp in graph_expansions]
+                    "related_jobs_found": graph_expansions.get("expansion_summary", {}).get("total_related", 0),
+                    "expansion_reasons": [exp.get('reason', '') for exp in graph_expansions.get("related_jobs", [])]
                 }
         
         logger.info(f"Retrieved {formatted_response.total_results} results for query")
