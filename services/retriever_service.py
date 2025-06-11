@@ -205,20 +205,11 @@ class JobRetrieverService:
         return context
 
     def expand_results_with_graph(self, vector_results: List[Dict]) -> Dict:
-        """Enhanced graph expansion with detailed context"""
+        """Bare minimum graph expansion - find related jobs by company"""
         if not self.neo4j_driver:
-            return {"insights": [], "related_jobs": []}
+            return {"related_jobs": [], "total_related": 0}
         
-        expanded_context = {
-            "related_jobs": [],
-            "company_connections": [],
-            "skill_connections": [],
-            "expansion_summary": {
-                "total_related": 0,
-                "same_company": 0,
-                "shared_skills": 0
-            }
-        }
+        related_jobs = []
         
         try:
             with self.neo4j_driver.session() as session:
@@ -227,40 +218,25 @@ class JobRetrieverService:
                     if not job_id:
                         continue
                     
-                    # Find related jobs through company and skills
-                    related_jobs = session.run("""
-                        // Same company jobs
+                    # Find other jobs at the same company
+                    same_company_jobs = session.run("""
                         MATCH (c:Company)-[:HAS_JOB]->(j1:Job {id: $job_id})
                         MATCH (c)-[:HAS_JOB]->(j2:Job)
                         WHERE j1 <> j2
-                        RETURN j2.id as related_job_id, j2.title as job_title, 
-                               c.name as company, 'same_company' as reason
-                        LIMIT 3
-                        
-                        UNION
-                        
-                        // Shared skills jobs
-                        MATCH (j1:Job {id: $job_id})-[:REQUIRES]->(s:Skill)<-[:REQUIRES]-(j2:Job)
-                        WHERE j1 <> j2
-                        RETURN j2.id as related_job_id, j2.title as job_title,
-                               s.name as shared_skill, 'shared_skills' as reason
-                        LIMIT 3
+                        RETURN j2.id as job_id, j2.title as title, c.name as company
+                        LIMIT 2
                     """, job_id=job_id).data()
                     
-                    for related in related_jobs:
-                        expanded_context["related_jobs"].append(related)
-                        if related["reason"] == "same_company":
-                            expanded_context["expansion_summary"]["same_company"] += 1
-                        elif related["reason"] == "shared_skills":
-                            expanded_context["expansion_summary"]["shared_skills"] += 1
-                    
-                    expanded_context["expansion_summary"]["total_related"] = len(expanded_context["related_jobs"])
+                    related_jobs.extend(same_company_jobs)
         
         except Exception as e:
             logger.error(f"Error expanding results with graph: {e}")
-            expanded_context["error"] = str(e)
+            return {"related_jobs": [], "total_related": 0, "error": str(e)}
         
-        return expanded_context
+        return {
+            "related_jobs": related_jobs,
+            "total_related": len(related_jobs)
+        }
 
     def format_results(self, raw_results: Dict[str, Any], query: str) -> QueryResponse:
         """Format the raw ChromaDB results into a structured response"""
