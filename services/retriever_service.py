@@ -22,6 +22,7 @@ class QueryResponse(BaseModel):
     results: List[Dict[str, Any]]
     query: str
     total_results: int
+    graph_context: Optional[Dict[str, Any]] = None
 
 class JobRetrieverService:
     def __init__(self):
@@ -346,7 +347,7 @@ class JobRetrieverService:
             graph_expansions = self.expand_results_with_graph(formatted_response.results)
             
             # Add graph context to response
-            formatted_response.__dict__['graph_context'] = {
+            formatted_response.graph_context = {
                 "related_jobs": graph_expansions.get("related_jobs", []),
                 "related_jobs_found": graph_expansions.get("total_related", 0),  # UI expects this key
                 "total_related": graph_expansions.get("total_related", 0),
@@ -361,7 +362,7 @@ class JobRetrieverService:
             if not self.neo4j_driver:
                 logger.info("🕸️ GRAPH CONTEXT: Neo4j driver not available")
             
-            formatted_response.__dict__['graph_context'] = {
+            formatted_response.graph_context = {
                 "related_jobs": [],
                 "related_jobs_found": 0,  # UI expects this key
                 "total_related": 0,
