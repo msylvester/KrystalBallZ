@@ -260,7 +260,6 @@ def main():
                             })
                         
                         st.table(summary_data)
-                        
                         # Graph context display
                         if retrieval_data.get("graph_context"):
                             st.subheader("🕸️ Related Opportunities")
