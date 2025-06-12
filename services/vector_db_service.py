@@ -4,6 +4,9 @@ from openai import OpenAI
 import chromadb
 import os
 import logging
+from neo4j import GraphDatabase
+from models.graph_schema import JOB_GRAPH_SCHEMA
+from scraper_utils.data_processor import extract_basic_skills
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -23,6 +26,7 @@ openai_client = OpenAI(api_key=openai_api_key) if openai_api_key else None
 # Initialize ChromaDB client with persistent storage
 # Use the same data directory as the retriever service
 chroma_data_path = os.environ.get("CHROMA_DATA_PATH", "./chroma_data")
+logger.info(f"Vector DB Service - ChromaDB path: {os.path.abspath(chroma_data_path)}")
 chroma_client = chromadb.PersistentClient(path=chroma_data_path)
 
 try:
@@ -32,11 +36,78 @@ except Exception:
     job_collection = chroma_client.create_collection("job_listings")
     logger.info("Created new 'job_listings' collection")
 
+# Initialize Neo4j client
+neo4j_uri = os.environ.get("NEO4J_URI", "bolt://localhost:7687")
+neo4j_user = os.environ.get("NEO4J_USER", "neo4j")
+neo4j_password = os.environ.get("NEO4J_PASSWORD", "jobsearch")
+
+try:
+    neo4j_driver = GraphDatabase.driver(neo4j_uri, auth=(neo4j_user, neo4j_password))
+    logger.info("Connected to Neo4j database")
+    
+    # Initialize graph schema
+    with neo4j_driver.session() as session:
+        # First, try to drop existing indexes that might conflict with constraints
+        try:
+            session.run("DROP INDEX ON :Job(id) IF EXISTS")
+            session.run("DROP INDEX ON :Company(name) IF EXISTS") 
+            session.run("DROP INDEX ON :Skill(name) IF EXISTS")
+            logger.info("Dropped existing indexes to avoid constraint conflicts")
+        except Exception as e:
+            logger.warning(f"Could not drop existing indexes: {e}")
+        
+        # Now create constraints and indexes
+        for query in JOB_GRAPH_SCHEMA.constraints + JOB_GRAPH_SCHEMA.indexes:
+            try:
+                session.run(query)
+                logger.info(f"Successfully executed schema query: {query[:50]}...")
+            except Exception as e:
+                logger.warning(f"Schema query failed (may already exist): {e}")
+    logger.info("Graph schema initialized")
+    
+except Exception as e:
+    logger.warning(f"Neo4j connection failed: {e}")
+    neo4j_driver = None
+
+def create_job_graph_node(job_data: dict):
+    """Create graph nodes for job, company, and skills"""
+    if not neo4j_driver:
+        logger.warning("Neo4j not available, skipping graph creation")
+        return
+    
+    try:
+        with neo4j_driver.session() as session:
+            # Extract skills from job text
+            skills = extract_basic_skills(job_data.get('text_preview', ''))
+            
+            session.run("""
+                MERGE (j:Job {id: $id})
+                SET j.title = $title, j.location = $location
+            
+                MERGE (c:Company {name: $company})
+                MERGE (c)-[:HAS_JOB]->(j)
+            
+                WITH j
+                UNWIND $skills as skill_name
+                MERGE (s:Skill {name: skill_name})
+                MERGE (j)-[:REQUIRES]->(s)
+            """, 
+            id=job_data['id'],
+            title=job_data.get('title', ''),
+            company=job_data.get('company', ''),
+            location=job_data.get('location', ''),
+            skills=skills
+            )
+            logger.info(f"Created graph nodes for job {job_data['id']}")
+    except Exception as e:
+        logger.error(f"Error creating graph nodes: {e}")
+
 @app.post("/ingest")
 async def ingest_job_listing(job: JobListing):
     """
     Ingests a vector-ready job listing, embeds the text_preview field using OpenAI embeddings,
     and stores the vector along with its metadata in a ChromaDB collection.
+    Also creates corresponding graph nodes in Neo4j.
     """
     try:
         if not openai_client:
@@ -59,8 +130,18 @@ async def ingest_job_listing(job: JobListing):
             metadatas=[job.metadata]
         )
         
+        # Create graph nodes in Neo4j
+        graph_data = {
+            'id': job.id,
+            'title': job.metadata.get('title', ''),
+            'company': job.metadata.get('company', ''),
+            'location': job.metadata.get('location', ''),
+            'text_preview': job.text_preview
+        }
+        create_job_graph_node(graph_data)
+        
         logger.info(f"Successfully ingested job listing: {job.id}")
-        return {"status": "success", "message": "Job listing ingested successfully"}
+        return {"status": "success", "message": "Job listing ingested to vector + graph"}
     except Exception as e:
         logger.error(f"Error ingesting job listing {job.id}: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))

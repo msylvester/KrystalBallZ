@@ -272,3 +272,25 @@ def create_embeddings_local(texts: List[str]) -> List[List[float]]:
         raise ImportError("sentence-transformers package not installed. Run: pip install sentence-transformers")
     except Exception as e:
         raise Exception(f"Error creating local embeddings: {str(e)}")
+
+def extract_basic_skills(text: str) -> List[str]:
+    """Simple keyword-based skill extraction for graph nodes"""
+    if not text:
+        return []
+    
+    common_skills = [
+        'python', 'java', 'javascript', 'react', 'node.js',
+        'machine learning', 'deep learning', 'tensorflow', 'pytorch',
+        'sql', 'postgresql', 'mongodb', 'aws', 'docker', 'kubernetes',
+        'git', 'linux', 'html', 'css', 'angular', 'vue', 'django',
+        'flask', 'redis', 'elasticsearch', 'spark', 'hadoop'
+    ]
+    
+    found_skills = []
+    text_lower = text.lower()
+    
+    for skill in common_skills:
+        if skill in text_lower:
+            found_skills.append(skill.title())
+    
+    return list(set(found_skills))[:5]  # Remove duplicates, limit to 5 skills
