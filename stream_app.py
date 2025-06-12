@@ -265,9 +265,6 @@ def main():
                             st.subheader("🕸️ Related Opportunities")
                             graph_ctx = retrieval_data["graph_context"]
                             
-                            # Debug info to see what keys are available
-                            st.write("DEBUG - Graph context keys:", list(graph_ctx.keys()))
-                            
                             if graph_ctx.get("total_related", 0) > 0:
                                 st.info(f"Found {graph_ctx['total_related']} related jobs through company connections and shared skills")
                                 
