@@ -266,6 +266,7 @@ class JobRetrieverService:
                         continue
                     
                     logger.info(f"🕸️ GRAPH EXPANSION: Processing job_id: {job_id}")
+                    logger.info(f"🕸️ GRAPH EXPANSION: Attempting query with job_id: '{job_id}'")
                     
                     # Find other jobs at the same company
                     same_company_jobs = session.run("""
