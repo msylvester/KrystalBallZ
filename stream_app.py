@@ -272,7 +272,23 @@ def main():
                                 st.info(f"Found {graph_ctx['total_related']} related jobs through company connections and shared skills")
                                 
                                 with st.expander("View Related Jobs"):
-                                    st.write("Jobs at same companies or requiring similar skills")
+                                    st.write("**Related opportunities found through graph connections:**")
+                                    
+                                    # Display the actual related jobs
+                                    related_jobs = graph_ctx.get("related_jobs", [])
+                                    if related_jobs:
+                                        for i, job in enumerate(related_jobs, 1):
+                                            job_title = job.get("title", "Unknown Title")
+                                            company = job.get("company", "Unknown Company")
+                                            job_id = job.get("job_id", "")
+                                            st.write(f"**{i}.** {job_title} at {company}")
+                                            if job_id:
+                                                st.write(f"   *Job ID: {job_id}*")
+                                    else:
+                                        st.write("No related job details available")
+                                    
+                                    # Show expansion reasons
+                                    st.write("\n**Connection types:**")
                                     for reason in set(graph_ctx.get("expansion_reasons", [])):
                                         if reason == "same_company":
                                             st.write("• Jobs at the same companies")
