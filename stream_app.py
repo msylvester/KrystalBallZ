@@ -266,12 +266,15 @@ def main():
                             st.subheader("🕸️ Related Opportunities")
                             graph_ctx = retrieval_data["graph_context"]
                             
-                            if graph_ctx["related_jobs_found"] > 0:
-                                st.info(f"Found {graph_ctx['related_jobs_found']} related jobs through company connections and shared skills")
+                            # Debug info to see what keys are available
+                            st.write("DEBUG - Graph context keys:", list(graph_ctx.keys()))
+                            
+                            if graph_ctx.get("total_related", 0) > 0:
+                                st.info(f"Found {graph_ctx['total_related']} related jobs through company connections and shared skills")
                                 
                                 with st.expander("View Related Jobs"):
                                     st.write("Jobs at same companies or requiring similar skills")
-                                    for reason in set(graph_ctx["expansion_reasons"]):
+                                    for reason in set(graph_ctx.get("expansion_reasons", [])):
                                         if reason == "same_company":
                                             st.write("• Jobs at the same companies")
                                         elif reason == "shared_skills":
