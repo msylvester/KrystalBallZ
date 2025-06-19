@@ -256,6 +256,7 @@ def main():
                                 "Title": metadata.get("title", "N/A"),
                                 "Company": metadata.get("company", "N/A"),
                                 "Location": metadata.get("location", "N/A"),
+                                "Posted": metadata.get("posted_date", "N/A"),
                                 "Similarity": f"{result.get('similarity_score', 0):.3f}"
                             })
                         
@@ -306,6 +307,7 @@ def main():
                                     st.write(f"**Title:** {metadata.get('title', 'N/A')}")
                                     st.write(f"**Company:** {metadata.get('company', 'N/A')}")
                                     st.write(f"**Location:** {metadata.get('location', 'N/A')}")
+                                    st.write(f"**Posted Date:** {metadata.get('posted_date', 'N/A')}")
                                     st.write(f"**Experience Level:** {metadata.get('experience_level', 'N/A')}")
                                     st.write(f"**Employment Type:** {metadata.get('employment_type', 'N/A')}")
                                 
