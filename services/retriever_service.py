@@ -372,6 +372,74 @@ class JobRetrieverService:
         
         logger.info(f"Retrieved {formatted_response.total_results} results for query")
         return formatted_response
+    
+    async def analyze_location_distribution(self):
+        """Analyze job distribution by location"""
+        if not self.job_collection:
+            raise HTTPException(status_code=500, detail="No job data available")
+        
+        try:
+            # Get all job metadata
+            all_results = self.job_collection.get(include=["metadatas"])
+            locations = {}
+            
+            for metadata in all_results.get("metadatas", []):
+                location = metadata.get("location", "Unknown")
+                # Clean up location names
+                if "San Francisco" in location or "SF" in location:
+                    location = "San Francisco, CA"
+                elif "New York" in location or "NYC" in location:
+                    location = "New York, NY"
+                elif "Seattle" in location:
+                    location = "Seattle, WA"
+                elif "Boston" in location:
+                    location = "Boston, MA"
+                elif "Austin" in location:
+                    location = "Austin, TX"
+                
+                locations[location] = locations.get(location, 0) + 1
+            
+            # Sort by count
+            sorted_locations = sorted(locations.items(), key=lambda x: x[1], reverse=True)
+            
+            return {
+                "analysis_type": "location_distribution",
+                "total_jobs": len(all_results.get("metadatas", [])),
+                "top_locations": sorted_locations[:10],
+                "summary": f"Most AI engineering jobs are in {sorted_locations[0][0]} with {sorted_locations[0][1]} positions" if sorted_locations else "No location data available"
+            }
+            
+        except Exception as e:
+            logger.error(f"Error analyzing location distribution: {str(e)}")
+            raise HTTPException(status_code=500, detail=str(e))
+    
+    async def analyze_company_distribution(self):
+        """Analyze job distribution by company"""
+        if not self.job_collection:
+            raise HTTPException(status_code=500, detail="No job data available")
+        
+        try:
+            # Get all job metadata
+            all_results = self.job_collection.get(include=["metadatas"])
+            companies = {}
+            
+            for metadata in all_results.get("metadatas", []):
+                company = metadata.get("company", "Unknown")
+                companies[company] = companies.get(company, 0) + 1
+            
+            # Sort by count
+            sorted_companies = sorted(companies.items(), key=lambda x: x[1], reverse=True)
+            
+            return {
+                "analysis_type": "company_distribution", 
+                "total_jobs": len(all_results.get("metadatas", [])),
+                "top_companies": sorted_companies[:10],
+                "summary": f"Most AI engineering jobs are at {sorted_companies[0][0]} with {sorted_companies[0][1]} positions" if sorted_companies else "No company data available"
+            }
+            
+        except Exception as e:
+            logger.error(f"Error analyzing company distribution: {str(e)}")
+            raise HTTPException(status_code=500, detail=str(e))
 
 # Initialize the service
 retriever_service = JobRetrieverService()
@@ -415,6 +483,23 @@ def health_check():
         "openai_configured": retriever_service.openai_api_key is not None,
         "chromadb_connected": retriever_service.job_collection is not None
     }
+
+@app.get("/analyze")
+async def analyze_job_market(
+    query: str = Query(..., description="Analytical query"),
+    analysis_type: str = Query("location_distribution", description="Type of analysis")
+):
+    """Analyze job market data for insights"""
+    try:
+        if analysis_type == "location_distribution":
+            return await retriever_service.analyze_location_distribution()
+        elif analysis_type == "company_distribution":
+            return await retriever_service.analyze_company_distribution()
+        else:
+            return {"error": "Analysis type not supported"}
+    except Exception as e:
+        logger.error(f"Error in job market analysis: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/collection/info")
 def collection_info():

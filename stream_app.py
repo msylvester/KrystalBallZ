@@ -4,6 +4,7 @@ import os
 import requests
 import json
 import logging
+import re
 from datetime import datetime
 
 # Configure logging
@@ -47,51 +48,224 @@ class Agent:
             self.logger.error(f"Error calling retriever service: {str(e)}")
             return f"Error retrieving jobs: {str(e)}"
 
+    def _classify_query_intent(self, query):
+        """Use LLM agent to classify user intent"""
+        if not self.api_key:
+            self.logger.warning("No API key available for intent classification, using fallback")
+            return self._fallback_intent_classification(query)
+        
+        try:
+            client = OpenAI(api_key=self.api_key)
+            response = client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[
+                    {"role": "system", "content": """
+                    Classify the user's intent into one of these categories:
+                    - "job_listing_request": User wants to see specific job listings/postings
+                    - "analytical_question": User wants analysis/insights about job market data
+                    - "general_question": Other questions not related to jobs
+                    
+                    Examples:
+                    - "Find me AI jobs in SF" → job_listing_request
+                    - "Show me machine learning positions" → job_listing_request
+                    - "What area has the most AI jobs?" → analytical_question
+                    - "Which location has the highest demand?" → analytical_question
+                    - "How do I prepare for interviews?" → general_question
+                    
+                    Respond with only the category name.
+                    """},
+                    {"role": "user", "content": query}
+                ],
+                max_tokens=20,
+                temperature=0.1
+            )
+            
+            intent = response.choices[0].message.content.strip()
+            valid_intents = ["job_listing_request", "analytical_question", "general_question"]
+            
+            if intent in valid_intents:
+                self.logger.info(f"LLM classified intent as: {intent}")
+                return intent
+            else:
+                self.logger.warning(f"LLM returned invalid intent: {intent}, using fallback")
+                return self._fallback_intent_classification(query)
+                
+        except Exception as e:
+            self.logger.error(f"Error in LLM intent classification: {e}")
+            return self._fallback_intent_classification(query)
+    
+    def _fallback_intent_classification(self, query):
+        """Fallback pattern-based intent classification"""
+        query_lower = query.lower()
+        
+        # Analytical question patterns
+        analytical_patterns = [
+            r"what area.*most.*jobs", r"which location.*most", r"where.*most.*hiring",
+            r"what city.*most", r"which company.*most", r"how many.*jobs",
+            r"what.*percentage", r"compare.*locations", r"analyze.*market",
+            r"trends.*in", r"statistics.*about", r"distribution.*of"
+        ]
+        
+        # Job listing request patterns  
+        listing_patterns = [
+            r"find.*jobs.*for me", r"show me.*jobs", r"looking for.*position",
+            r"search.*openings", r"get.*job.*listings", r"i want.*job"
+        ]
+        
+        # Check for analytical patterns first
+        for pattern in analytical_patterns:
+            if re.search(pattern, query_lower):
+                return "analytical_question"
+        
+        # Then check for job listing patterns
+        for pattern in listing_patterns:
+            if re.search(pattern, query_lower):
+                return "job_listing_request"
+        
+        # Default logic for ambiguous cases
+        if any(word in query_lower for word in ["jobs", "positions", "openings"]):
+            if any(word in query_lower for word in ["what", "which", "where", "how many", "most", "analyze"]):
+                return "analytical_question"
+            else:
+                return "job_listing_request"
+        
+        return "general_question"
+    
+    def _handle_analytical_query(self, query):
+        """Handle analytical questions about job market data"""
+        try:
+            # Try to get analytical data from retriever service
+            response = requests.get(
+                f"{self.retriever_url}/analyze",
+                params={"query": query, "analysis_type": "location_distribution"}
+            )
+            
+            if response.status_code == 200:
+                data = response.json()
+                return self._format_analytical_response(query, data)
+            else:
+                # Fallback to GPT with job context
+                return self._gpt_with_job_context(query)
+                
+        except Exception as e:
+            self.logger.error(f"Error in analytical processing: {str(e)}")
+            return self._gpt_with_job_context(query)
+    
+    def _format_analytical_response(self, query, data):
+        """Format analytical response data"""
+        if data.get("analysis_type") == "location_distribution":
+            top_locations = data.get("top_locations", [])
+            total_jobs = data.get("total_jobs", 0)
+            
+            if top_locations:
+                response = f"📊 **Job Market Analysis:**\n\n"
+                response += f"Based on {total_jobs} AI engineering jobs in our database:\n\n"
+                response += f"**Top locations:**\n"
+                for i, (location, count) in enumerate(top_locations[:5], 1):
+                    percentage = (count / total_jobs * 100) if total_jobs > 0 else 0
+                    response += f"{i}. **{location}**: {count} jobs ({percentage:.1f}%)\n"
+                
+                return response
+            else:
+                return "No location data available for analysis."
+        
+        return str(data)
+    
+    def _gpt_with_job_context(self, query):
+        """Use GPT with job market context for analytical questions"""
+        if not self.api_key:
+            return "Error: OpenAI API key not set for analytical queries"
+        
+        try:
+            # Get some job data for context
+            job_response = requests.get(
+                f"{self.retriever_url}/retrieve",
+                params={"query": "ai engineering jobs", "n_results": 20}
+            )
+            
+            context = ""
+            if job_response.status_code == 200:
+                job_data = job_response.json()
+                locations = {}
+                companies = {}
+                
+                for result in job_data.get("results", []):
+                    metadata = result.get("metadata", {})
+                    location = metadata.get("location", "Unknown")
+                    company = metadata.get("company", "Unknown")
+                    
+                    locations[location] = locations.get(location, 0) + 1
+                    companies[company] = companies.get(company, 0) + 1
+                
+                top_locations = dict(sorted(locations.items(), key=lambda x: x[1], reverse=True)[:5])
+                top_companies = dict(sorted(companies.items(), key=lambda x: x[1], reverse=True)[:5])
+                
+                context = f"Current job market data - Top locations: {top_locations}, Top companies: {top_companies}"
+            
+            client = OpenAI(api_key=self.api_key)
+            response = client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[
+                    {"role": "system", "content": f"You are an AI job market analyst. Answer questions about job market trends and data. Use this context: {context}"},
+                    {"role": "user", "content": query}
+                ],
+                max_tokens=200,
+                temperature=0.3
+            )
+            
+            return response.choices[0].message.content.strip()
+            
+        except Exception as e:
+            return f"Error analyzing job market data: {str(e)}"
+
     def process_event(self, event):
-        """Process an incoming event using vector retrieval or GPT-3.5"""
+        """Process an incoming event using intent-aware routing"""
         self.event_history.append(event)
         self.logger.info(f"Processing event: '{event}'")
         
-        # Check if this is a job search request
-        if any(keyword in event.lower() for keyword in ["jobs", "job search", "find", "search", "looking for"]) and any(job_term in event.lower() for job_term in ["job", "position", "role", "career"]):
+        # Classify the intent using LLM agent
+        intent_type = self._classify_query_intent(event)
+        self.logger.info(f"Classified intent: {intent_type}")
+        
+        if intent_type == "job_listing_request":
             self.logger.info("Routing to vector retrieval service")
             
             # Extract number of results
-            import re
             num_match = re.search(r'(\d+)\s+jobs?', event.lower())
             n_results = int(num_match.group(1)) if num_match else 5
             
             self.logger.info(f"Calling retriever with query='{event}', n_results={n_results}")
             return self.tools["retrieve_jobs"](query=event, n_results=n_results)
-        
-        # Fall back to GPT-3.5 for non-job queries
-        if not self.api_key:
-            self.logger.error("OpenAI API key not set")
-            return "Error: OpenAI API key not set"
-        
-        try:
-            self.logger.info("Routing to GPT-3.5")
-            client = OpenAI(api_key=self.api_key)
             
-            self.logger.info("Sending request to OpenAI API")
-            response = client.chat.completions.create(
-                model="gpt-3.5-turbo",
-                messages=[
-                    {"role": "system", "content": "You are a helpful assistant."},
-                    {"role": "user", "content": event}
-                ],
-                max_tokens=150,
-                temperature=0.7,
-                top_p=1.0,
-                frequency_penalty=0.0,
-                presence_penalty=0.0
-            )
-            ai_response = response.choices[0].message.content.strip()
-            self.logger.info(f"Received response from GPT-3.5 ({len(ai_response)} chars)")
-            return ai_response
-        except Exception as e:
-            self.logger.error(f"Error processing with GPT-3.5: {str(e)}")
-            return f"Error processing with GPT-3.5: {str(e)}"
+        elif intent_type == "analytical_question":
+            self.logger.info("Routing to analytical processing")
+            return self._handle_analytical_query(event)
+        
+        else:  # general_question
+            # Fall back to GPT-3.5 for general questions
+            if not self.api_key:
+                self.logger.error("OpenAI API key not set")
+                return "Error: OpenAI API key not set"
+            
+            try:
+                self.logger.info("Routing to GPT-3.5 for general question")
+                client = OpenAI(api_key=self.api_key)
+                
+                response = client.chat.completions.create(
+                    model="gpt-3.5-turbo",
+                    messages=[
+                        {"role": "system", "content": "You are a helpful assistant."},
+                        {"role": "user", "content": event}
+                    ],
+                    max_tokens=150,
+                    temperature=0.7
+                )
+                ai_response = response.choices[0].message.content.strip()
+                self.logger.info(f"Received response from GPT-3.5 ({len(ai_response)} chars)")
+                return ai_response
+            except Exception as e:
+                self.logger.error(f"Error processing with GPT-3.5: {str(e)}")
+                return f"Error processing with GPT-3.5: {str(e)}"
     
     def get_event_history(self):
         return self.event_history
