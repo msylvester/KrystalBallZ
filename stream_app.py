@@ -48,11 +48,10 @@ class Agent:
             self.logger.error(f"Error calling retriever service: {str(e)}")
             return f"Error retrieving jobs: {str(e)}"
 
-    def _classify_query_intent(self, query):
-        """Use LLM agent to classify user intent"""
+    def _classify_query_with_confidence(self, query):
+        """Classify intent with confidence scoring"""
         if not self.api_key:
-            self.logger.warning("No API key available for intent classification, using fallback")
-            return self._fallback_intent_classification(query)
+            return self._fallback_intent_with_confidence(query)
         
         try:
             client = OpenAI(api_key=self.api_key)
@@ -60,76 +59,69 @@ class Agent:
                 model="gpt-3.5-turbo",
                 messages=[
                     {"role": "system", "content": """
-                    Classify the user's intent into one of these categories:
-                    - "job_listing_request": User wants to see specific job listings/postings
-                    - "analytical_question": User wants analysis/insights about job market data
-                    - "general_question": Other questions not related to jobs
+                    Classify the user's intent and provide a confidence score.
                     
-                    Examples:
-                    - "Find me AI jobs in SF" → job_listing_request
-                    - "Show me machine learning positions" → job_listing_request
-                    - "What area has the most AI jobs?" → analytical_question
-                    - "Which location has the highest demand?" → analytical_question
-                    - "How do I prepare for interviews?" → general_question
+                    Categories:
+                    - "job_listing_request": User wants specific job listings
+                    - "analytical_question": User wants job market analysis  
+                    - "general_question": Other questions
                     
-                    Respond with only the category name.
+                    Also assess if the query has sufficient specificity for RAG retrieval.
+                    
+                    Respond in JSON format:
+                    {
+                        "intent": "category_name",
+                        "confidence": 0.85,
+                        "rag_suitable": true,
+                        "reasoning": "explanation"
+                    }
+                    
+                    Confidence: 0.0-1.0 (1.0 = very certain)
+                    RAG suitable: true if query is specific enough for vector search
                     """},
                     {"role": "user", "content": query}
                 ],
-                max_tokens=20,
+                max_tokens=150,
                 temperature=0.1
             )
             
-            intent = response.choices[0].message.content.strip()
-            valid_intents = ["job_listing_request", "analytical_question", "general_question"]
+            result = json.loads(response.choices[0].message.content.strip())
+            self.logger.info(f"Intent classification: {result}")
+            return result
             
-            if intent in valid_intents:
-                self.logger.info(f"LLM classified intent as: {intent}")
-                return intent
-            else:
-                self.logger.warning(f"LLM returned invalid intent: {intent}, using fallback")
-                return self._fallback_intent_classification(query)
-                
         except Exception as e:
             self.logger.error(f"Error in LLM intent classification: {e}")
-            return self._fallback_intent_classification(query)
+            return self._fallback_intent_with_confidence(query)
     
-    def _fallback_intent_classification(self, query):
-        """Fallback pattern-based intent classification"""
+    def _fallback_intent_with_confidence(self, query):
+        """Fallback classification with confidence scoring"""
         query_lower = query.lower()
         
-        # Analytical question patterns
-        analytical_patterns = [
-            r"what area.*most.*jobs", r"which location.*most", r"where.*most.*hiring",
-            r"what city.*most", r"which company.*most", r"how many.*jobs",
-            r"what.*percentage", r"compare.*locations", r"analyze.*market",
-            r"trends.*in", r"statistics.*about", r"distribution.*of"
-        ]
+        # High confidence patterns
+        if any(pattern in query_lower for pattern in ["find jobs", "show me jobs", "i want a job"]):
+            return {
+                "intent": "job_listing_request",
+                "confidence": 0.9,
+                "rag_suitable": True,
+                "reasoning": "Clear job search request"
+            }
         
-        # Job listing request patterns  
-        listing_patterns = [
-            r"find.*jobs.*for me", r"show me.*jobs", r"looking for.*position",
-            r"search.*openings", r"get.*job.*listings", r"i want.*job"
-        ]
-        
-        # Check for analytical patterns first
-        for pattern in analytical_patterns:
-            if re.search(pattern, query_lower):
-                return "analytical_question"
-        
-        # Then check for job listing patterns
-        for pattern in listing_patterns:
-            if re.search(pattern, query_lower):
-                return "job_listing_request"
-        
-        # Default logic for ambiguous cases
+        # Medium confidence patterns
         if any(word in query_lower for word in ["jobs", "positions", "openings"]):
-            if any(word in query_lower for word in ["what", "which", "where", "how many", "most", "analyze"]):
-                return "analytical_question"
-            else:
-                return "job_listing_request"
+            return {
+                "intent": "job_listing_request", 
+                "confidence": 0.6,
+                "rag_suitable": len(query.split()) >= 3,  # Need some specificity
+                "reasoning": "Contains job-related terms but may lack specificity"
+            }
         
-        return "general_question"
+        # Low confidence - too vague
+        return {
+            "intent": "general_question",
+            "confidence": 0.3,
+            "rag_suitable": False,
+            "reasoning": "Query too vague for specific retrieval"
+        }
     
     def _handle_analytical_query(self, query):
         """Handle analytical questions about job market data"""
@@ -171,6 +163,102 @@ class Agent:
         
         return str(data)
     
+    def _assess_query_quality(self, query, intent_result):
+        """Assess if query is suitable for RAG retrieval"""
+        
+        quality_checks = {
+            "length": len(query.split()) >= 2,  # At least 2 words
+            "specificity": self._has_specific_terms(query),
+            "clarity": intent_result["confidence"] >= 0.7,
+            "rag_suitable": intent_result.get("rag_suitable", False)
+        }
+        
+        quality_score = sum(quality_checks.values()) / len(quality_checks)
+        
+        return {
+            "quality_score": quality_score,
+            "checks": quality_checks,
+            "should_use_rag": quality_score >= 0.6,
+            "issues": [k for k, v in quality_checks.items() if not v]
+        }
+
+    def _has_specific_terms(self, query):
+        """Check if query has specific, searchable terms"""
+        specific_terms = [
+            # Job types
+            "engineer", "developer", "scientist", "analyst", "manager",
+            # Technologies  
+            "python", "javascript", "machine learning", "ai", "data",
+            # Industries
+            "biotech", "finance", "healthcare", "startup",
+            # Locations
+            "san francisco", "new york", "remote", "seattle"
+        ]
+        
+        query_lower = query.lower()
+        return any(term in query_lower for term in specific_terms)
+
+    def _should_use_rag(self, query, intent_result):
+        """Central decision point for RAG usage"""
+        
+        # Get quality assessment
+        quality_result = self._assess_query_quality(query, intent_result)
+        
+        # Decision logic
+        decision_factors = {
+            "intent_suitable": intent_result["intent"] in ["job_listing_request", "analytical_question"],
+            "confidence_high": intent_result["confidence"] >= 0.7,
+            "quality_sufficient": quality_result["should_use_rag"],
+            "not_too_broad": not self._is_too_broad(query),
+            "has_context": self._has_searchable_context(query)
+        }
+        
+        # Require majority of factors to be true
+        use_rag = sum(decision_factors.values()) >= 3
+        
+        self.logger.info(f"RAG decision factors: {decision_factors}")
+        self.logger.info(f"Use RAG: {use_rag}")
+        
+        return {
+            "use_rag": use_rag,
+            "factors": decision_factors,
+            "quality": quality_result,
+            "recommendation": self._get_recommendation(decision_factors, quality_result)
+        }
+
+    def _is_too_broad(self, query):
+        """Check if query is too broad for effective RAG retrieval"""
+        broad_patterns = [
+            r"^(what|how|why|when|where)$",  # Single question words
+            r"^(jobs|work|career)$",         # Single broad terms
+            r"tell me about",                # Very open-ended
+            r"everything about"
+        ]
+        
+        query_lower = query.lower().strip()
+        return any(re.match(pattern, query_lower) for pattern in broad_patterns)
+
+    def _has_searchable_context(self, query):
+        """Check if query has enough context for meaningful search"""
+        context_indicators = [
+            len(query.split()) >= 3,  # At least 3 words
+            any(char.isupper() for char in query),  # Proper nouns/companies
+            re.search(r'\b(in|at|for|with|using)\b', query.lower()),  # Contextual prepositions
+        ]
+        
+        return sum(context_indicators) >= 2
+
+    def _get_recommendation(self, factors, quality):
+        """Provide recommendation for improving query"""
+        if not factors["quality_sufficient"]:
+            return "Query needs more specific terms (job titles, technologies, companies, locations)"
+        elif not factors["confidence_high"]:
+            return "Query intent unclear - try rephrasing more directly"
+        elif not factors["not_too_broad"]:
+            return "Query too broad - add specific requirements"
+        else:
+            return "Query suitable for search"
+
     def _gpt_with_job_context(self, query):
         """Use GPT with job market context for analytical questions"""
         if not self.api_key:
@@ -219,53 +307,90 @@ class Agent:
             return f"Error analyzing job market data: {str(e)}"
 
     def process_event(self, event):
-        """Process an incoming event using intent-aware routing"""
+        """Process event with uncertainty handling"""
         self.event_history.append(event)
         self.logger.info(f"Processing event: '{event}'")
         
-        # Classify the intent using LLM agent
-        intent_type = self._classify_query_intent(event)
-        self.logger.info(f"Classified intent: {intent_type}")
+        # Get intent with confidence
+        intent_result = self._classify_query_with_confidence(event)
         
-        if intent_type == "job_listing_request":
-            self.logger.info("Routing to vector retrieval service")
-            
-            # Extract number of results
-            num_match = re.search(r'(\d+)\s+jobs?', event.lower())
-            n_results = int(num_match.group(1)) if num_match else 5
-            
-            self.logger.info(f"Calling retriever with query='{event}', n_results={n_results}")
-            return self.tools["retrieve_jobs"](query=event, n_results=n_results)
-            
-        elif intent_type == "analytical_question":
-            self.logger.info("Routing to analytical processing")
-            return self._handle_analytical_query(event)
+        # Decide whether to use RAG
+        rag_decision = self._should_use_rag(event, intent_result)
         
-        else:  # general_question
-            # Fall back to GPT-3.5 for general questions
-            if not self.api_key:
-                self.logger.error("OpenAI API key not set")
-                return "Error: OpenAI API key not set"
+        if rag_decision["use_rag"]:
+            self.logger.info("✅ Using RAG retrieval")
+            return self._handle_with_rag(event, intent_result)
+        else:
+            self.logger.info("❌ Skipping RAG - using alternative handling")
+            return self._handle_without_rag(event, intent_result, rag_decision)
+
+    def _handle_without_rag(self, query, intent_result, rag_decision):
+        """Handle queries that shouldn't use RAG"""
+        
+        # Provide helpful guidance
+        guidance = f"""
+🤔 **Query Analysis:**
+- Intent: {intent_result['intent']} (confidence: {intent_result['confidence']:.2f})
+- Recommendation: {rag_decision['recommendation']}
+
+**To get better job search results, try:**
+- Adding specific job titles (e.g., "machine learning engineer")
+- Including technologies (e.g., "Python", "AI")
+- Specifying companies or industries (e.g., "at biotech companies")
+- Adding location preferences (e.g., "in San Francisco")
+
+**Example:** "Find AI engineering jobs at biology companies in San Francisco"
+        """
+        
+        # For very general questions, still try GPT
+        if intent_result["intent"] == "general_question":
+            return self._fallback_to_gpt(query)
+        
+        return guidance
+
+    def _handle_with_rag(self, query, intent_result):
+        """Handle queries suitable for RAG"""
+        if intent_result["intent"] == "job_listing_request":
+            return self._process_job_search(query)
+        elif intent_result["intent"] == "analytical_question":
+            return self._handle_analytical_query(query)
+        else:
+            return self._fallback_to_gpt(query)
+
+    def _process_job_search(self, query):
+        """Process job search with RAG"""
+        # Extract number of results
+        num_match = re.search(r'(\d+)\s+jobs?', query.lower())
+        n_results = int(num_match.group(1)) if num_match else 5
+        
+        self.logger.info(f"Calling retriever with query='{query}', n_results={n_results}")
+        return self.tools["retrieve_jobs"](query=query, n_results=n_results)
+
+    def _fallback_to_gpt(self, query):
+        """Fallback to GPT for general questions"""
+        if not self.api_key:
+            self.logger.error("OpenAI API key not set")
+            return "Error: OpenAI API key not set"
+        
+        try:
+            self.logger.info("Routing to GPT-3.5 for general question")
+            client = OpenAI(api_key=self.api_key)
             
-            try:
-                self.logger.info("Routing to GPT-3.5 for general question")
-                client = OpenAI(api_key=self.api_key)
-                
-                response = client.chat.completions.create(
-                    model="gpt-3.5-turbo",
-                    messages=[
-                        {"role": "system", "content": "You are a helpful assistant."},
-                        {"role": "user", "content": event}
-                    ],
-                    max_tokens=150,
-                    temperature=0.7
-                )
-                ai_response = response.choices[0].message.content.strip()
-                self.logger.info(f"Received response from GPT-3.5 ({len(ai_response)} chars)")
-                return ai_response
-            except Exception as e:
-                self.logger.error(f"Error processing with GPT-3.5: {str(e)}")
-                return f"Error processing with GPT-3.5: {str(e)}"
+            response = client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[
+                    {"role": "system", "content": "You are a helpful assistant."},
+                    {"role": "user", "content": query}
+                ],
+                max_tokens=150,
+                temperature=0.7
+            )
+            ai_response = response.choices[0].message.content.strip()
+            self.logger.info(f"Received response from GPT-3.5 ({len(ai_response)} chars)")
+            return ai_response
+        except Exception as e:
+            self.logger.error(f"Error processing with GPT-3.5: {str(e)}")
+            return f"Error processing with GPT-3.5: {str(e)}"
     
     def get_event_history(self):
         return self.event_history
