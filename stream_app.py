@@ -243,7 +243,7 @@ class Agent:
         context_indicators = [
             len(query.split()) >= 3,  # At least 3 words
             any(char.isupper() for char in query),  # Proper nouns/companies
-            re.search(r'\b(in|at|for|with|using)\b', query.lower()),  # Contextual prepositions
+            bool(re.search(r'\b(in|at|for|with|using)\b', query.lower())),  # Contextual prepositions
         ]
         
         return sum(context_indicators) >= 2
