@@ -147,20 +147,40 @@ def main():
     if st.sidebar.button("ingest"):
          from scraper_utils.job_scraper_linkedin_guest import scrape_ai_jobs_for_rag
          
-         jobs = scrape_ai_jobs_for_rag()
-         vector_ingest_url = os.environ.get("VECTOR_DB_URL", "http://localhost:8002/ingest")
-         success_count = 0
-         for job in jobs:
-             payload = {
-                 "id": job["id"],
-                 "text_preview": job["text"],
-                 "metadata": job["metadata"]
-             }
-             response = requests.post(vector_ingest_url, json=payload)
+         with st.sidebar:
+             with st.spinner("Scraping jobs..."):
+                 jobs = scrape_ai_jobs_for_rag()
+             
+             st.info(f"Scraped {len(jobs)} jobs, checking for duplicates...")
+             
+             # Use batch ingestion endpoint
+             vector_ingest_url = os.environ.get("VECTOR_DB_URL", "http://localhost:8002/ingest/batch")
+             
+             payload = []
+             for job in jobs:
+                 payload.append({
+                     "id": job["id"],
+                     "text_preview": job["text"],
+                     "metadata": job["metadata"]
+                 })
+             
+             with st.spinner("Ingesting new jobs..."):
+                 response = requests.post(vector_ingest_url, json=payload)
+             
              if response.status_code == 200:
-                 success_count += 1
-         st.sidebar.success(f"Ingested {success_count} vector-ready job postings via API")
-         st.sidebar.info("Job postings processed and ingested via vector DB service")
+                 result = response.json()
+                 st.success(f"✅ Ingestion Complete!")
+                 st.info(f"📊 **Results:**")
+                 st.info(f"• **New jobs added:** {result['new_jobs']}")
+                 st.info(f"• **Duplicates skipped:** {result['skipped_jobs']}")
+                 st.info(f"• **Failed:** {result['failed_jobs']}")
+                 st.info(f"• **Total processed:** {result['total_jobs']}")
+                 
+                 if result['new_jobs'] > 0:
+                     st.balloons()
+             else:
+                 st.error(f"❌ Ingestion failed: {response.status_code}")
+                 st.error(response.text)
          
          # Show sample of vector-ready job from scraped data
          if jobs:
@@ -256,6 +276,7 @@ def main():
                                 "Title": metadata.get("title", "N/A"),
                                 "Company": metadata.get("company", "N/A"),
                                 "Location": metadata.get("location", "N/A"),
+                                "Posted": metadata.get("posted_date", "N/A"),
                                 "Similarity": f"{result.get('similarity_score', 0):.3f}"
                             })
                         
@@ -306,6 +327,7 @@ def main():
                                     st.write(f"**Title:** {metadata.get('title', 'N/A')}")
                                     st.write(f"**Company:** {metadata.get('company', 'N/A')}")
                                     st.write(f"**Location:** {metadata.get('location', 'N/A')}")
+                                    st.write(f"**Posted Date:** {metadata.get('posted_date', 'N/A')}")
                                     st.write(f"**Experience Level:** {metadata.get('experience_level', 'N/A')}")
                                     st.write(f"**Employment Type:** {metadata.get('employment_type', 'N/A')}")
                                 

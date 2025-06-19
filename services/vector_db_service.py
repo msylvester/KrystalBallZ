@@ -4,6 +4,7 @@ from openai import OpenAI
 import chromadb
 import os
 import logging
+from typing import List
 from neo4j import GraphDatabase
 from models.graph_schema import JOB_GRAPH_SCHEMA
 from scraper_utils.data_processor import extract_basic_skills
@@ -18,6 +19,9 @@ class JobListing(BaseModel):
     id: str
     text_preview: str
     metadata: dict
+
+class JobIdCheck(BaseModel):
+    job_ids: List[str]
 
 # Initialize OpenAI client
 openai_api_key = os.environ.get("OPENAI_API_KEY")
@@ -110,6 +114,19 @@ async def ingest_job_listing(job: JobListing):
     Also creates corresponding graph nodes in Neo4j.
     """
     try:
+        # Check if job already exists
+        try:
+            existing_results = job_collection.get(ids=[job.id])
+            if existing_results['ids']:
+                logger.info(f"Job {job.id} already exists in database, skipping")
+                return {
+                    "status": "skipped", 
+                    "message": f"Job {job.id} already exists",
+                    "job_id": job.id
+                }
+        except Exception as e:
+            logger.warning(f"Error checking for existing job {job.id}: {e}")
+        
         if not openai_client:
             raise HTTPException(status_code=500, detail="OpenAI API key not configured")
         
@@ -141,9 +158,54 @@ async def ingest_job_listing(job: JobListing):
         create_job_graph_node(graph_data)
         
         logger.info(f"Successfully ingested job listing: {job.id}")
-        return {"status": "success", "message": "Job listing ingested to vector + graph"}
+        return {"status": "success", "message": "Job listing ingested to vector + graph", "job_id": job.id}
     except Exception as e:
         logger.error(f"Error ingesting job listing {job.id}: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/ingest/batch")
+async def ingest_job_batch(jobs: List[JobListing]):
+    """Batch ingest multiple jobs with duplicate checking"""
+    results = {
+        "total_jobs": len(jobs),
+        "new_jobs": 0,
+        "skipped_jobs": 0,
+        "failed_jobs": 0,
+        "details": []
+    }
+    
+    for job in jobs:
+        try:
+            result = await ingest_job_listing(job)
+            if result["status"] == "success":
+                results["new_jobs"] += 1
+            elif result["status"] == "skipped":
+                results["skipped_jobs"] += 1
+            results["details"].append(result)
+        except Exception as e:
+            results["failed_jobs"] += 1
+            results["details"].append({
+                "status": "failed",
+                "job_id": job.id,
+                "error": str(e)
+            })
+    
+    logger.info(f"Batch ingestion complete: {results['new_jobs']} new, {results['skipped_jobs']} skipped, {results['failed_jobs']} failed")
+    return results
+
+@app.post("/check_existing")
+def check_existing_jobs(request: JobIdCheck):
+    """Check which job IDs already exist in the database"""
+    try:
+        existing_results = job_collection.get(ids=request.job_ids)
+        existing_ids = existing_results['ids']
+        return {
+            "total_checked": len(request.job_ids),
+            "existing_count": len(existing_ids),
+            "existing_ids": existing_ids
+        }
+    except Exception as e:
+        logger.error(f"Error checking existing jobs: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/count")
