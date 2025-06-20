@@ -305,6 +305,54 @@ class JobRetrieverService:
             "expansion_reasons": expansion_reasons
         }
 
+    def apply_temporal_ranking(self, results: List[Dict]) -> List[Dict]:
+        """Re-rank results by posting date for temporal queries"""
+        from datetime import datetime, timedelta
+        
+        def parse_date_score(posted_date):
+            """Convert posted_date to a recency score (higher = more recent)"""
+            try:
+                if isinstance(posted_date, str):
+                    # Parse YYYY-MM-DD format
+                    job_date = datetime.strptime(posted_date, "%Y-%m-%d")
+                else:
+                    return 0
+                
+                # Calculate days ago
+                days_ago = (datetime.now() - job_date).days
+                
+                # Score: recent jobs get higher scores
+                if days_ago <= 7:
+                    return 1.0  # Last week
+                elif days_ago <= 30:
+                    return 0.7  # Last month
+                elif days_ago <= 90:
+                    return 0.4  # Last 3 months
+                else:
+                    return 0.1  # Older
+                    
+            except Exception as e:
+                logger.warning(f"Error parsing date {posted_date}: {e}")
+                return 0
+        
+        # Add temporal scores and re-rank
+        for result in results:
+            posted_date = result.get("metadata", {}).get("posted_date")
+            temporal_score = parse_date_score(posted_date)
+            
+            # Combine similarity and temporal scores
+            similarity_score = result.get("similarity_score", 0)
+            combined_score = (similarity_score * 0.6) + (temporal_score * 0.4)
+            
+            result["temporal_score"] = temporal_score
+            result["combined_score"] = combined_score
+        
+        # Sort by combined score
+        results.sort(key=lambda x: x.get("combined_score", 0), reverse=True)
+        
+        logger.info("Applied temporal ranking to results")
+        return results
+
     def format_results(self, raw_results: Dict[str, Any], query: str) -> QueryResponse:
         """Format the raw ChromaDB results into a structured response"""
         formatted_results = []
@@ -330,9 +378,9 @@ class JobRetrieverService:
             total_results=len(formatted_results)
         )
     
-    async def retrieve_jobs(self, query: str, n_results: int = 5) -> QueryResponse:
-        """Main retrieval method that handles the full pipeline"""
-        logger.info(f"Processing query: '{query}' with n_results={n_results}")
+    async def retrieve_jobs(self, query: str, n_results: int = 5, temporal_intent: bool = False, temporal_keywords: List[str] = None) -> QueryResponse:
+        """Main retrieval method with temporal awareness"""
+        logger.info(f"Processing query: '{query}' with temporal_intent={temporal_intent}")
         
         # Create embedding for the query
         query_embedding = await self.create_query_embedding(query)
@@ -342,6 +390,11 @@ class JobRetrieverService:
         
         # Format results
         formatted_response = self.format_results(raw_results, query)
+        
+        # Apply temporal filtering/re-ranking if needed
+        if temporal_intent and formatted_response.results:
+            formatted_response.results = self.apply_temporal_ranking(formatted_response.results)
+            logger.info(f"Applied temporal ranking for {len(formatted_response.results)} results")
         
         # Add graph context for enhanced results
         logger.info(f"🕸️ GRAPH CONTEXT: Checking if graph expansion should be performed")
@@ -468,7 +521,9 @@ async def retrieve_jobs(request: QueryRequest):
 @app.get("/retrieve", response_model=QueryResponse)
 async def retrieve_jobs_get(
     query: str = Query(..., description="Search query for job listings"),
-    n_results: int = Query(5, description="Number of results to return", ge=1, le=50)
+    n_results: int = Query(5, description="Number of results to return", ge=1, le=50),
+    temporal_intent: bool = Query(False, description="Whether query has temporal intent"),
+    temporal_keywords: str = Query("", description="Comma-separated temporal keywords")
 ):
     """
     Retrieve relevant job listings based on a user query (GET endpoint).
@@ -476,7 +531,9 @@ async def retrieve_jobs_get(
     Alternative GET endpoint for easier testing and integration.
     """
     try:
-        return await retriever_service.retrieve_jobs(query, n_results)
+        return await retriever_service.retrieve_jobs(
+            query, n_results, temporal_intent, temporal_keywords.split(",") if temporal_keywords else []
+        )
     except Exception as e:
         logger.error(f"Error in retrieve GET endpoint: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))

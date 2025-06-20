@@ -29,18 +29,31 @@ class Agent:
     
     def retrieve_jobs(self, query, n_results=5):
         """Retrieve jobs using the vector retrieval service"""
+        return self.retrieve_jobs_with_temporal(query, n_results, False, [])
+
+    def retrieve_jobs_with_temporal(self, query, n_results=5, temporal_intent=False, temporal_keywords=None):
+        """Retrieve jobs with temporal awareness"""
         try:
-            self.logger.info(f"Calling retriever service with query='{query}', n_results={n_results}")
-            response = requests.get(
-                f"{self.retriever_url}/retrieve",
-                params={"query": query, "n_results": n_results}
-            )
+            params = {
+                "query": query, 
+                "n_results": n_results,
+                "temporal_intent": temporal_intent
+            }
+            if temporal_keywords:
+                params["temporal_keywords"] = ",".join(temporal_keywords)
+                
+            self.logger.info(f"Calling retriever service with query='{query}', n_results={n_results}, temporal_intent={temporal_intent}")
+            response = requests.get(f"{self.retriever_url}/retrieve", params=params)
             
             if response.status_code == 200:
                 data = response.json()
                 total_results = data.get("total_results", 0)
                 self.logger.info(f"Retrieved {total_results} jobs from vector service")
-                return f"🔍 VECTOR SEARCH RESULTS: Found {total_results} relevant jobs for '{query}'"
+                
+                if temporal_intent:
+                    return f"🔍 RECENT JOBS SEARCH: Found {total_results} recent AI engineering jobs"
+                else:
+                    return f"🔍 VECTOR SEARCH RESULTS: Found {total_results} relevant jobs for '{query}'"
             elif response.status_code == 404:
                 self.logger.warning("No job data found in collection")
                 return "📭 **No Job Data Available**\n\nThe job database is currently empty. Please use the 'ingest' button in the sidebar to scrape and load fresh job data before searching."
@@ -89,22 +102,24 @@ class Agent:
                     - "analytical_question": User wants job market analysis  
                     - "general_question": Other questions
                     
-                    Also assess if the query has sufficient specificity for RAG retrieval.
+                    Also assess temporal intent and specificity for RAG retrieval.
                     
                     Respond in JSON format:
                     {
                         "intent": "category_name",
                         "confidence": 0.85,
                         "rag_suitable": true,
+                        "temporal_intent": true,
+                        "temporal_keywords": ["recent", "latest"],
                         "reasoning": "explanation"
                     }
                     
-                    Confidence: 0.0-1.0 (1.0 = very certain)
-                    RAG suitable: true if query is specific enough for vector search
+                    Temporal intent: true if query asks for recent/latest/new jobs
+                    Temporal keywords: list of time-related words found
                     """},
                     {"role": "user", "content": query}
                 ],
-                max_tokens=150,
+                max_tokens=200,
                 temperature=0.1
             )
             
@@ -120,12 +135,19 @@ class Agent:
         """Fallback classification with confidence scoring"""
         query_lower = query.lower()
         
+        # Detect temporal keywords
+        temporal_keywords = ["recent", "latest", "new", "newest", "fresh", "today", "yesterday", "this week", "last week"]
+        found_temporal = [kw for kw in temporal_keywords if kw in query_lower]
+        has_temporal_intent = len(found_temporal) > 0
+        
         # High confidence patterns
         if any(pattern in query_lower for pattern in ["find jobs", "show me jobs", "i want a job"]):
             return {
                 "intent": "job_listing_request",
                 "confidence": 0.9,
                 "rag_suitable": True,
+                "temporal_intent": has_temporal_intent,
+                "temporal_keywords": found_temporal,
                 "reasoning": "Clear job search request"
             }
         
@@ -135,6 +157,8 @@ class Agent:
                 "intent": "job_listing_request", 
                 "confidence": 0.6,
                 "rag_suitable": len(query.split()) >= 3,  # Need some specificity
+                "temporal_intent": has_temporal_intent,
+                "temporal_keywords": found_temporal,
                 "reasoning": "Contains job-related terms but may lack specificity"
             }
         
@@ -143,6 +167,8 @@ class Agent:
             "intent": "general_question",
             "confidence": 0.3,
             "rag_suitable": False,
+            "temporal_intent": has_temporal_intent,
+            "temporal_keywords": found_temporal,
             "reasoning": "Query too vague for specific retrieval"
         }
     
@@ -374,20 +400,26 @@ class Agent:
     def _handle_with_rag(self, query, intent_result):
         """Handle queries suitable for RAG"""
         if intent_result["intent"] == "job_listing_request":
-            return self._process_job_search(query)
+            return self._process_job_search(query, intent_result)
         elif intent_result["intent"] == "analytical_question":
             return self._handle_analytical_query(query)
         else:
             return self._fallback_to_gpt(query)
 
-    def _process_job_search(self, query):
+    def _process_job_search(self, query, intent_result=None):
         """Process job search with RAG"""
         # Extract number of results
         num_match = re.search(r'(\d+)\s+jobs?', query.lower())
         n_results = int(num_match.group(1)) if num_match else 5
         
-        self.logger.info(f"Calling retriever with query='{query}', n_results={n_results}")
-        return self.tools["retrieve_jobs"](query=query, n_results=n_results)
+        # Check for temporal intent
+        temporal_intent = intent_result.get("temporal_intent", False) if intent_result else False
+        temporal_keywords = intent_result.get("temporal_keywords", []) if intent_result else []
+        
+        self.logger.info(f"Calling retriever with query='{query}', n_results={n_results}, temporal_intent={temporal_intent}")
+        
+        # Call retriever with temporal information
+        return self.retrieve_jobs_with_temporal(query=query, n_results=n_results, temporal_intent=temporal_intent, temporal_keywords=temporal_keywords)
 
     def _fallback_to_gpt(self, query):
         """Fallback to GPT for general questions"""
