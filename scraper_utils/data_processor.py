@@ -124,6 +124,8 @@ def standardize_date(date_str: Any) -> str:
     """Standardize date format"""
     if isinstance(date_str, str):
         return date_str
+    elif isinstance(date_str, (int, float)):
+        return datetime.fromtimestamp(date_str).strftime("%Y-%m-%d")
     elif isinstance(date_str, datetime):
         return date_str.strftime("%Y-%m-%d")
     else:
