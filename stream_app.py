@@ -589,7 +589,7 @@ def main():
         
         # Determine which service was used
         service_used = None
-        if "VECTOR SEARCH RESULTS" in response:
+        if "VECTOR SEARCH RESULTS" in response or "RECENT JOBS SEARCH" in response:
             service_used = "Vector Retrieval Service"
             logger.info("Response identified as coming from Vector Retrieval Service")
         else:
