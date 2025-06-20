@@ -41,12 +41,35 @@ class Agent:
                 total_results = data.get("total_results", 0)
                 self.logger.info(f"Retrieved {total_results} jobs from vector service")
                 return f"🔍 VECTOR SEARCH RESULTS: Found {total_results} relevant jobs for '{query}'"
+            elif response.status_code == 404:
+                self.logger.warning("No job data found in collection")
+                return "📭 **No Job Data Available**\n\nThe job database is currently empty. Please use the 'ingest' button in the sidebar to scrape and load fresh job data before searching."
+            elif response.status_code == 500:
+                error_detail = ""
+                try:
+                    error_data = response.json()
+                    error_detail = error_data.get("detail", "")
+                except:
+                    error_detail = response.text
+                
+                if "No job data found in collection" in error_detail:
+                    self.logger.warning("Collection exists but is empty")
+                    return "📭 **Job Database Empty**\n\nThe job collection exists but contains no data. Please use the 'ingest' button in the sidebar to scrape and load job listings."
+                elif "Job collection not available" in error_detail:
+                    self.logger.error("Job collection not available")
+                    return "🚫 **Database Connection Issue**\n\nThe job collection is not available. Please check that the vector database service is running and try again."
+                else:
+                    self.logger.error(f"Retriever service error: {response.status_code} - {error_detail}")
+                    return f"❌ **Service Error**\n\nError retrieving jobs: {error_detail}\n\nPlease try again or contact support if the issue persists."
             else:
                 self.logger.error(f"Retriever service error: {response.status_code}")
-                return f"Error retrieving jobs: {response.status_code} - {response.text}"
+                return f"❌ **Service Error**\n\nError retrieving jobs: {response.status_code} - {response.text}"
+        except requests.exceptions.ConnectionError:
+            self.logger.error("Cannot connect to retriever service")
+            return "🔌 **Connection Error**\n\nCannot connect to the job retrieval service. Please ensure the service is running on the expected port."
         except Exception as e:
             self.logger.error(f"Error calling retriever service: {str(e)}")
-            return f"Error retrieving jobs: {str(e)}"
+            return f"❌ **Unexpected Error**\n\nError retrieving jobs: {str(e)}"
 
     def _classify_query_with_confidence(self, query):
         """Classify intent with confidence scoring"""
@@ -544,10 +567,14 @@ def main():
         if service_used:
             st.markdown(f"<div style='background-color: #e6f3ff; padding: 10px; border-radius: 5px; margin-bottom: 10px;'><strong>🔧 Using {service_used}</strong></div>", unsafe_allow_html=True)
         
-        st.success(response)
+        # Check if this is an error response and display appropriately
+        if any(error_indicator in response for error_indicator in ["📭", "🚫", "❌", "🔌"]):
+            st.error(response)
+        else:
+            st.success(response)
         logger.info("Response displayed to user")
         
-        if service_used == "Vector Retrieval Service":
+        if service_used == "Vector Retrieval Service" and not any(error_indicator in response for error_indicator in ["📭", "🚫", "❌", "🔌"]):
             import re
             num_match = re.search(r'(\d+)\s+jobs?', current_input.lower())
             n_results = int(num_match.group(1)) if num_match else 5
@@ -647,8 +674,22 @@ def main():
                                     st.text_area("", document[:500] + "..." if len(document) > 500 else document, height=100, key=f"doc_{i}")
                     else:
                         st.info("No job listings found for your query.")
+                elif retrieval_response.status_code == 404:
+                    st.info("💡 **Tip:** Use the 'ingest' button in the sidebar to load job data first.")
+                elif retrieval_response.status_code == 500:
+                    try:
+                        error_data = retrieval_response.json()
+                        error_detail = error_data.get("detail", "")
+                        if "No job data found" in error_detail:
+                            st.info("💡 **Tip:** Use the 'ingest' button in the sidebar to scrape and load fresh job data.")
+                        else:
+                            st.error(f"Service error: {error_detail}")
+                    except:
+                        st.error(f"Failed to retrieve job listings: {retrieval_response.status_code}")
                 else:
                     st.error(f"Failed to retrieve job listings: {retrieval_response.status_code}")
+            except requests.exceptions.ConnectionError:
+                st.error("🔌 Cannot connect to retrieval service. Please ensure it's running.")
             except Exception as e:
                 st.error(f"Failed to fetch job listings: {e}")
         
