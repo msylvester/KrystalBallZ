@@ -15,6 +15,32 @@ from scraper_utils.data_processor import (
     prepare_for_vector_db,
     validate_job_data
 )
+import time
+import re
+
+def time_diff_from_now(time_str):
+    """
+    Converts a time string like "1 hour ago", "2 days ago", etc.
+    to a Unix timestamp representing the posted time.
+    If the time string is invalid, raises a ValueError.
+    """
+    now = int(time.time())
+    match = re.match(r'(\d+)\s*(second|minute|hour|day|week|month|year)s?\s+ago', time_str.lower())
+    if not match:
+        raise ValueError("Invalid time format. Expected formats like '1 hour ago', '2 weeks ago', etc.")
+    quantity = int(match.group(1))
+    unit = match.group(2)
+    unit_seconds = {
+        'second': 1,
+        'minute': 60,
+        'hour': 3600,
+        'day': 86400,
+        'week': 604800,
+        'month': 2629800,  # Approximate: 30.44 days
+        'year': 31557600,  # Approximate: 365.25 days
+    }
+    diff_seconds = quantity * unit_seconds[unit]
+    return now - diff_seconds
 
 def scrape_ai_jobs_for_rag(max_jobs=100):
     """
@@ -106,7 +132,11 @@ def scrape_ai_jobs_for_rag(max_jobs=100):
                      location_elem = card.find("span", class_="job-search-card__location")
                      location_text = location_elem.get_text(strip=True) if location_elem else "N/A"
                      posted_elem = card.find("time")
-                     posted_date = posted_elem.get_text(strip=True) if posted_elem else "N/A"
+                     posted_raw = posted_elem.get_text(strip=True) if posted_elem else "N/A"
+                     try:
+                         posted_date = time_diff_from_now(posted_raw)
+                     except Exception:
+                         posted_date = "N/A"
                      
                      job = {
                          "job_title": title_text,
