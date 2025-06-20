@@ -105,6 +105,8 @@ def scrape_ai_jobs_for_rag(max_jobs=100):
                      company_text = company_elem.get_text(strip=True) if company_elem else "LinkedIn"
                      location_elem = card.find("span", class_="job-search-card__location")
                      location_text = location_elem.get_text(strip=True) if location_elem else "N/A"
+                     posted_elem = card.find("time")
+                     posted_date = posted_elem.get_text(strip=True) if posted_elem else "N/A"
                      
                      job = {
                          "job_title": title_text,
@@ -118,7 +120,7 @@ def scrape_ai_jobs_for_rag(max_jobs=100):
                          "apply_link": apply_link,
                          "source": "LinkedIn",
                          "search_term": search_term.replace('+', ' '),
-                         "posted_date": datetime.now().strftime("%Y-%m-%d")
+                         "posted_date": posted_date
                      }
                      page_results.append(job)
                  
