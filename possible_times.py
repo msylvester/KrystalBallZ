@@ -42,8 +42,8 @@ def main():
         sys.exit(1)
     
     posted_dates = extract_posted_dates(data)
-    print("Extracted posted_date values:")
-    print(json.dumps(posted_dates, indent=2))
+    with open("p_t.txt", "w") as f:
+        f.write(json.dumps(posted_dates, indent=2))
 
 if __name__ == '__main__':
     main()
