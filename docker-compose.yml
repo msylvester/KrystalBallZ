@@ -1,0 +1,87 @@
+version: '3.8'
+
+services:
+  neo4j:
+    image: neo4j:5.15
+    container_name: neo4j_jobs
+    ports:
+      - "7474:7474"
+      - "7687:7687"
+    environment:
+      - NEO4J_AUTH=neo4j/jobsearch
+      - NEO4J_PLUGINS=["apoc"]
+    volumes:
+      - neo4j_data:/data
+      - neo4j_logs:/logs
+    networks:
+      - job_network
+
+  vector_db_service:
+    build:
+      context: .
+      dockerfile: services/Dockerfile.vector_db
+    container_name: vector_db_service
+    ports:
+      - "8002:8002"
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - NEO4J_URI=bolt://neo4j:7687
+      - NEO4J_USER=neo4j
+      - NEO4J_PASSWORD=jobsearch
+      - CHROMA_DATA_PATH=/app/chroma_data
+    volumes:
+      - chroma_data:/app/chroma_data
+    depends_on:
+      - neo4j
+    networks:
+      - job_network
+    restart: unless-stopped
+
+  retriever_service:
+    build:
+      context: .
+      dockerfile: services/Dockerfile.retriever
+    container_name: retriever_service
+    ports:
+      - "8001:8001"
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - NEO4J_URI=bolt://neo4j:7687
+      - NEO4J_USER=neo4j
+      - NEO4J_PASSWORD=jobsearch
+      - CHROMA_DATA_PATH=/app/chroma_data
+    volumes:
+      - chroma_data:/app/chroma_data  # Same volume as vector_db_service
+    depends_on:
+      - neo4j
+      - vector_db_service
+    networks:
+      - job_network
+    restart: unless-stopped
+
+  streamlit_app:
+    build:
+      context: .
+      dockerfile: Dockerfile.streamlit
+    container_name: streamlit_app
+    ports:
+      - "8501:8501"
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - RETRIEVER_SERVICE_URL=http://retriever_service:8001
+      - VECTOR_DB_URL=http://vector_db_service:8002
+    depends_on:
+      - retriever_service
+      - vector_db_service
+    networks:
+      - job_network
+    restart: unless-stopped
+
+volumes:
+  neo4j_data:
+  neo4j_logs:
+  chroma_data:  # Shared volume for both services
+
+networks:
+  job_network:
+    driver: bridge
