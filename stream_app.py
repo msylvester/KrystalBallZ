@@ -507,8 +507,8 @@ def main():
              
              st.info(f"Scraped {len(jobs)} jobs, checking for duplicates...")
              
-             # Use batch ingestion endpoint
-             vector_ingest_url = os.environ.get("VECTOR_DB_URL", "http://localhost:8002/ingest/batch")
+             # Use dockerized vector_db microservice
+             vector_ingest_url = "http://localhost:8002/ingest/batch"
              
              payload = []
              for job in jobs:
